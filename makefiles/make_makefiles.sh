@@ -39,7 +39,7 @@ for p in $(seq 1 $np) ; do
 
 		# trackfiles
 		FILE=data/$EXPNAME/$KILLINGTIME/$NAME-sim$sim.txt
-		echo "$FILE : skin/epidermis0.js"
+		echo "$FILE : examples-node/epidermis0.js"
 		echo -e "\t@"node \$\< $time 0 600 $LAMBDACHEM 0.025 $BIASEDENTRY $KILLINGTIME $TYPE 0.00002 20 1000 2 "> \$@"
 		echo "all : "$FILE
 	done
