@@ -1370,6 +1370,7 @@ var CPM = (function (exports) {
 			} else {
 				cbpi = cbpi[cell];
 			}
+			let neigh_cell = [];
 			let neigh_cell_amountborder = {};
 			//loop over border pixels of cell
 			for ( let cellpix = 0; cellpix < cbpi.length; cellpix++ ) {
@@ -1381,20 +1382,23 @@ var CPM = (function (exports) {
 				for ( let neighborpix = 0; neighborpix < neighbours_of_borderpixel_cell.length;
 					neighborpix ++ ) {
 					let cell_id = this.C.pixti(neighbours_of_borderpixel_cell[neighborpix]);
-					if (cell_id != cell) {
+					if (cell_id != cell && this.C.t2k[cell_id] != this.C.t2k[cell]) {
+						if (!neigh_cell.includes(cell_id)) {
+							neigh_cell.push(cell_id);
+						}
 						neigh_cell_amountborder[cell_id] = neigh_cell_amountborder[cell_id]+1 || 1;
 					}
 				}
 			}
-			return neigh_cell_amountborder
+			return [neigh_cell, neigh_cell_amountborder]
 		}
 
 		// ------------ HELPER FUNCTIONS
-		
+
 		// TODO all helper functions have been removed from this class.
 		// We should only access cellpixels through the "official" interface
 		// in the CPM class.
-		
+
 	}
 
 	class PostMCSStats {
@@ -1567,8 +1571,14 @@ var CPM = (function (exports) {
 				}
 			}
 
-			return centroid		
+			return centroid
 		}
+
+		// counts cells of kind
+		countCells ( kind ){
+			return this.C.t2k.reduce( function(xa,x){ return (x==kind) + xa } )
+		}
+
 	}
 
 	/* This class contains methods that should be executed once per monte carlo step.
@@ -23409,11 +23419,71 @@ var CPM = (function (exports) {
 		factory: factory_1$N
 	};
 
+	function factory$O(type, config, load, typed) {
+	  /**
+	   * Round a value towards zero.
+	   * For matrices, the function is evaluated element wise.
+	   *
+	   * Syntax:
+	   *
+	   *    math.fix(x)
+	   *
+	   * Examples:
+	   *
+	   *    math.fix(3.2)                // returns number 3
+	   *    math.fix(3.8)                // returns number 3
+	   *    math.fix(-4.2)               // returns number -4
+	   *    math.fix(-4.7)               // returns number -4
+	   *
+	   *    const c = math.complex(3.2, -2.7)
+	   *    math.fix(c)                  // returns Complex 3 - 2i
+	   *
+	   *    math.fix([3.2, 3.8, -4.7])   // returns Array [3, 3, -4]
+	   *
+	   * See also:
+	   *
+	   *    ceil, floor, round
+	   *
+	   * @param {number | BigNumber | Fraction | Complex | Array | Matrix} x Number to be rounded
+	   * @return {number | BigNumber | Fraction | Complex | Array | Matrix}            Rounded value
+	   */
+	  var fix = typed('fix', {
+	    'number': function number(x) {
+	      return x > 0 ? Math.floor(x) : Math.ceil(x);
+	    },
+	    'Complex': function Complex(x) {
+	      return new type.Complex(x.re > 0 ? Math.floor(x.re) : Math.ceil(x.re), x.im > 0 ? Math.floor(x.im) : Math.ceil(x.im));
+	    },
+	    'BigNumber': function BigNumber(x) {
+	      return x.isNegative() ? x.ceil() : x.floor();
+	    },
+	    'Fraction': function Fraction(x) {
+	      return x.s < 0 ? x.ceil() : x.floor();
+	    },
+	    'Array | Matrix': function ArrayMatrix(x) {
+	      // deep map collection, skip zeros since fix(0) = 0
+	      return deepMap(x, fix, true);
+	    }
+	  });
+	  fix.toTex = {
+	    1: "\\mathrm{${name}}\\left(${args[0]}\\right)"
+	  };
+	  return fix;
+	}
+
+	var name$J = 'fix';
+	var factory_1$O = factory$O;
+
+	var fix = {
+		name: name$J,
+		factory: factory_1$O
+	};
+
 	var isInteger$5 = number.isInteger;
 
 	var resize = array.resize;
 
-	function factory$O(type, config, load, typed) {
+	function factory$P(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Create a matrix filled with zeros. The created matrix can have one or
@@ -23536,12 +23606,12 @@ var CPM = (function (exports) {
 	} // TODO: zeros contains almost the same code as ones. Reuse this?
 
 
-	var name$J = 'zeros';
-	var factory_1$O = factory$O;
+	var name$K = 'zeros';
+	var factory_1$P = factory$P;
 
 	var zeros = {
-		name: name$J,
-		factory: factory_1$O
+		name: name$K,
+		factory: factory_1$P
 	};
 
 	var isInteger$6 = number.isInteger;
@@ -23552,7 +23622,7 @@ var CPM = (function (exports) {
 
 	var NO_INT = 'Number of decimals in function round must be an integer';
 
-	function factory$P(type, config, load, typed) {
+	function factory$Q(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var equalScalar$1 = load(equalScalar);
 	  var zeros$1 = load(zeros);
@@ -23710,227 +23780,15 @@ var CPM = (function (exports) {
 	  return parseFloat(toFixed(value, decimals));
 	}
 
-	var name$K = 'round';
-	var factory_1$P = factory$P;
-
-	var round$1 = {
-		name: name$K,
-		factory: factory_1$P
-	};
-
-	var nearlyEqual$4 = number.nearlyEqual;
-
-
-
-	function factory$Q(type, config, load, typed) {
-	  var round = load(round$1);
-	  /**
-	   * Round a value towards plus infinity
-	   * If `x` is complex, both real and imaginary part are rounded towards plus infinity.
-	   * For matrices, the function is evaluated element wise.
-	   *
-	   * Syntax:
-	   *
-	   *    math.ceil(x)
-	   *
-	   * Examples:
-	   *
-	   *    math.ceil(3.2)               // returns number 4
-	   *    math.ceil(3.8)               // returns number 4
-	   *    math.ceil(-4.2)              // returns number -4
-	   *    math.ceil(-4.7)              // returns number -4
-	   *
-	   *    const c = math.complex(3.2, -2.7)
-	   *    math.ceil(c)                 // returns Complex 4 - 2i
-	   *
-	   *    math.ceil([3.2, 3.8, -4.7])  // returns Array [4, 4, -4]
-	   *
-	   * See also:
-	   *
-	   *    floor, fix, round
-	   *
-	   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix} x  Number to be rounded
-	   * @return {number | BigNumber | Fraction | Complex | Array | Matrix} Rounded value
-	   */
-
-	  var ceil = typed('ceil', {
-	    'number': function number(x) {
-	      if (nearlyEqual$4(x, round(x), config.epsilon)) {
-	        return round(x);
-	      } else {
-	        return Math.ceil(x);
-	      }
-	    },
-	    'Complex': function Complex(x) {
-	      return x.ceil();
-	    },
-	    'BigNumber': function BigNumber(x) {
-	      if (nearlyEqual(x, round(x), config.epsilon)) {
-	        return round(x);
-	      } else {
-	        return x.ceil();
-	      }
-	    },
-	    'Fraction': function Fraction(x) {
-	      return x.ceil();
-	    },
-	    'Array | Matrix': function ArrayMatrix(x) {
-	      // deep map collection, skip zeros since ceil(0) = 0
-	      return deepMap(x, ceil, true);
-	    }
-	  });
-	  ceil.toTex = {
-	    1: "\\left\\lceil${args[0]}\\right\\rceil"
-	  };
-	  return ceil;
-	}
-
-	var name$L = 'ceil';
+	var name$L = 'round';
 	var factory_1$Q = factory$Q;
 
-	var ceil$1 = {
+	var round$1 = {
 		name: name$L,
 		factory: factory_1$Q
 	};
 
-	var nearlyEqual$5 = number.nearlyEqual;
-
-
-
 	function factory$R(type, config, load, typed) {
-	  var round = load(round$1);
-	  /**
-	   * Round a value towards minus infinity.
-	   * For matrices, the function is evaluated element wise.
-	   *
-	   * Syntax:
-	   *
-	   *    math.floor(x)
-	   *
-	   * Examples:
-	   *
-	   *    math.floor(3.2)              // returns number 3
-	   *    math.floor(3.8)              // returns number 3
-	   *    math.floor(-4.2)             // returns number -5
-	   *    math.floor(-4.7)             // returns number -5
-	   *
-	   *    const c = math.complex(3.2, -2.7)
-	   *    math.floor(c)                // returns Complex 3 - 3i
-	   *
-	   *    math.floor([3.2, 3.8, -4.7]) // returns Array [3, 3, -5]
-	   *
-	   * See also:
-	   *
-	   *    ceil, fix, round
-	   *
-	   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix} x  Number to be rounded
-	   * @return {number | BigNumber | Fraction | Complex | Array | Matrix} Rounded value
-	   */
-
-	  var floor = typed('floor', {
-	    'number': function number(x) {
-	      if (nearlyEqual$5(x, round(x), config.epsilon)) {
-	        return round(x);
-	      } else {
-	        return Math.floor(x);
-	      }
-	    },
-	    'Complex': function Complex(x) {
-	      return x.floor();
-	    },
-	    'BigNumber': function BigNumber(x) {
-	      if (nearlyEqual(x, round(x), config.epsilon)) {
-	        return round(x);
-	      } else {
-	        return x.floor();
-	      }
-	    },
-	    'Fraction': function Fraction(x) {
-	      return x.floor();
-	    },
-	    'Array | Matrix': function ArrayMatrix(x) {
-	      // deep map collection, skip zeros since floor(0) = 0
-	      return deepMap(x, floor, true);
-	    }
-	  });
-	  floor.toTex = {
-	    1: "\\left\\lfloor${args[0]}\\right\\rfloor"
-	  };
-	  return floor;
-	}
-
-	var name$M = 'floor';
-	var factory_1$R = factory$R;
-
-	var floor$1 = {
-		name: name$M,
-		factory: factory_1$R
-	};
-
-	function factory$S(type, config, load, typed) {
-	  var ceil = load(ceil$1);
-	  var floor = load(floor$1);
-	  /**
-	   * Round a value towards zero.
-	   * For matrices, the function is evaluated element wise.
-	   *
-	   * Syntax:
-	   *
-	   *    math.fix(x)
-	   *
-	   * Examples:
-	   *
-	   *    math.fix(3.2)                // returns number 3
-	   *    math.fix(3.8)                // returns number 3
-	   *    math.fix(-4.2)               // returns number -4
-	   *    math.fix(-4.7)               // returns number -4
-	   *
-	   *    const c = math.complex(3.2, -2.7)
-	   *    math.fix(c)                  // returns Complex 3 - 2i
-	   *
-	   *    math.fix([3.2, 3.8, -4.7])   // returns Array [3, 3, -4]
-	   *
-	   * See also:
-	   *
-	   *    ceil, floor, round
-	   *
-	   * @param {number | BigNumber | Fraction | Complex | Array | Matrix} x Number to be rounded
-	   * @return {number | BigNumber | Fraction | Complex | Array | Matrix}            Rounded value
-	   */
-
-	  var fix = typed('fix', {
-	    'number': function number(x) {
-	      return x > 0 ? floor(x) : ceil(x);
-	    },
-	    'Complex': function Complex(x) {
-	      return new type.Complex(x.re > 0 ? Math.floor(x.re) : Math.ceil(x.re), x.im > 0 ? Math.floor(x.im) : Math.ceil(x.im));
-	    },
-	    'BigNumber': function BigNumber(x) {
-	      return x.isNegative() ? ceil(x) : floor(x);
-	    },
-	    'Fraction': function Fraction(x) {
-	      return x.s < 0 ? x.ceil() : x.floor();
-	    },
-	    'Array | Matrix': function ArrayMatrix(x) {
-	      // deep map collection, skip zeros since fix(0) = 0
-	      return deepMap(x, fix, true);
-	    }
-	  });
-	  fix.toTex = {
-	    1: "\\mathrm{${name}}\\left(${args[0]}\\right)"
-	  };
-	  return fix;
-	}
-
-	var name$N = 'fix';
-	var factory_1$S = factory$S;
-
-	var fix = {
-		name: name$N,
-		factory: factory_1$S
-	};
-
-	function factory$T(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var equalScalar$1 = load(equalScalar);
 	  var algorithm03$1 = load(algorithm03);
@@ -24058,15 +23916,15 @@ var CPM = (function (exports) {
 	  return equal;
 	}
 
-	var name$O = 'equal';
-	var factory_1$T = factory$T;
+	var name$M = 'equal';
+	var factory_1$R = factory$R;
 
 	var equal = {
-		name: name$O,
-		factory: factory_1$T
+		name: name$M,
+		factory: factory_1$R
 	};
 
-	function factory$U(type, config, load, typed) {
+	function factory$S(type, config, load, typed) {
 	  /**
 	   * Test whether a value is an numeric value.
 	   *
@@ -24110,15 +23968,15 @@ var CPM = (function (exports) {
 	  return isNumeric;
 	}
 
-	var name$P = 'isNumeric';
-	var factory_1$U = factory$U;
+	var name$N = 'isNumeric';
+	var factory_1$S = factory$S;
 
 	var isNumeric = {
-		name: name$P,
-		factory: factory_1$U
+		name: name$N,
+		factory: factory_1$S
 	};
 
-	function factory$V(type, config, load, typed) {
+	function factory$T(type, config, load, typed) {
 	  /**
 	   * Format a value of any type into a string.
 	   *
@@ -24228,12 +24086,12 @@ var CPM = (function (exports) {
 	  return format;
 	}
 
-	var name$Q = 'format';
-	var factory_1$V = factory$V;
+	var name$O = 'format';
+	var factory_1$T = factory$T;
 
 	var format$2 = {
-		name: name$Q,
-		factory: factory_1$V
+		name: name$O,
+		factory: factory_1$T
 	};
 
 	function _typeof$5(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$5 = function _typeof(obj) { return typeof obj; }; } else { _typeof$5 = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$5(obj); }
@@ -24246,7 +24104,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$W(type, config, load, typed, math) {
+	function factory$U(type, config, load, typed, math) {
 	  var add = load(addScalar);
 	  var subtract$1 = load(subtract);
 	  var multiply = load(multiplyScalar);
@@ -28168,19 +28026,19 @@ var CPM = (function (exports) {
 	  return Unit;
 	}
 
-	var name$R = 'Unit';
+	var name$P = 'Unit';
 	var path$d = 'type';
-	var factory_1$W = factory$W;
+	var factory_1$U = factory$U;
 	var math$4 = true; // request access to the math namespace
 
 	var Unit = {
-		name: name$R,
+		name: name$P,
 		path: path$d,
-		factory: factory_1$W,
+		factory: factory_1$U,
 		math: math$4
 	};
 
-	function factory$X(type, config, load, typed) {
+	function factory$V(type, config, load, typed) {
 	  /**
 	   * Create a unit. Depending on the passed arguments, the function
 	   * will create and return a new math.type.Unit object.
@@ -28231,15 +28089,15 @@ var CPM = (function (exports) {
 	  return unit;
 	}
 
-	var name$S = 'unit';
-	var factory_1$X = factory$X;
+	var name$Q = 'unit';
+	var factory_1$V = factory$V;
 
 	var unit = {
-		name: name$S,
-		factory: factory_1$X
+		name: name$Q,
+		factory: factory_1$V
 	};
 
-	function factory$Y(type, config, load, typed) {
+	function factory$W(type, config, load, typed) {
 	  /**
 	   * Create a user-defined unit and register it with the Unit type.
 	   *
@@ -28312,15 +28170,15 @@ var CPM = (function (exports) {
 	  return createUnit;
 	}
 
-	var name$T = 'createUnit';
-	var factory_1$Y = factory$Y;
+	var name$R = 'createUnit';
+	var factory_1$W = factory$W;
 
 	var createUnit = {
-		name: name$T,
-		factory: factory_1$Y
+		name: name$R,
+		factory: factory_1$W
 	};
 
-	function factory$Z(type, config, load, typed) {
+	function factory$X(type, config, load, typed) {
 	  /**
 	   * Split a unit in an array of units whose sum is equal to the original unit.
 	   *
@@ -28348,17 +28206,17 @@ var CPM = (function (exports) {
 	  return splitUnit;
 	}
 
-	var name$U = 'splitUnit';
-	var factory_1$Z = factory$Z;
+	var name$S = 'splitUnit';
+	var factory_1$X = factory$X;
 
 	var splitUnit = {
-		name: name$U,
-		factory: factory_1$Z
+		name: name$S,
+		factory: factory_1$X
 	};
 
 	var lazy$4 = object.lazy;
 
-	function factory$_(type, config, load, typed, math) {
+	function factory$Y(type, config, load, typed, math) {
 	  // helper function to create a unit with a fixed prefix
 	  function fixedUnit(str) {
 	    var unit = type.Unit.parse(str);
@@ -28534,13 +28392,13 @@ var CPM = (function (exports) {
 	  lazy$4(math.expression.mathWithTransform, name, resolver);
 	}
 
-	var factory_1$_ = factory$_;
+	var factory_1$Y = factory$Y;
 	var lazy_1$2 = false; // no lazy loading of constants, the constants themselves are lazy when needed
 
 	var math$5 = true; // request access to the math namespace
 
 	var physicalConstants = {
-		factory: factory_1$_,
+		factory: factory_1$Y,
 		lazy: lazy_1$2,
 		math: math$5
 	};
@@ -28554,14 +28412,14 @@ var CPM = (function (exports) {
 
 	var type = [bignumber$1, boolean_1, chain$1, complex$2, fraction$2, matrix$1, number$3, numeric, resultset, string$5, unit$1];
 
-	var version = '5.8.0'; // Note: This file is automatically generated when building math.js.
+	var version = '5.6.0'; // Note: This file is automatically generated when building math.js.
 
-	function factory$$(type, config, load, typed, math) {
+	function factory$Z(type, config, load, typed, math) {
 	  // listen for changed in the configuration, automatically reload
 	  // constants when needed
 	  math.on('config', function (curr, prev) {
 	    if (curr.number !== prev.number) {
-	      factory$$(type, config, load, typed, math);
+	      factory$Z(type, config, load, typed, math);
 	    }
 	  });
 	  setConstant(math, 'true', true);
@@ -28650,13 +28508,13 @@ var CPM = (function (exports) {
 	  object.lazy(math.expression.mathWithTransform, name, resolver);
 	}
 
-	var factory_1$$ = factory$$;
+	var factory_1$Z = factory$Z;
 	var lazy$5 = false; // no lazy loading of constants, the constants themselves are lazy when needed
 
 	var math$6 = true; // request access to the math namespace
 
 	var constants$1 = {
-		factory: factory_1$$,
+		factory: factory_1$Z,
 		lazy: lazy$5,
 		math: math$6
 	};
@@ -28849,7 +28707,7 @@ var CPM = (function (exports) {
 
 	var hasOwnProperty$1 = object.hasOwnProperty;
 
-	function factory$10(type, config, load, typed, math) {
+	function factory$_(type, config, load, typed, math) {
 	  /**
 	   * Node
 	   */
@@ -29273,17 +29131,17 @@ var CPM = (function (exports) {
 	  return Node;
 	}
 
-	var name$V = 'Node';
+	var name$T = 'Node';
 	var path$e = 'expression.node';
 	var math$7 = true; // request access to the math namespace as 5th argument of the factory function
 
-	var factory_1$10 = factory$10;
+	var factory_1$_ = factory$_;
 
 	var Node = {
-		name: name$V,
+		name: name$T,
 		path: path$e,
 		math: math$7,
-		factory: factory_1$10
+		factory: factory_1$_
 	};
 
 	/**
@@ -29315,7 +29173,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$11(type, config, load, typed) {
+	function factory$$(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Get or set a subset of a matrix or string.
@@ -29526,12 +29384,12 @@ var CPM = (function (exports) {
 	  return updated;
 	}
 
-	var name$W = 'subset';
-	var factory_1$11 = factory$11;
+	var name$U = 'subset';
+	var factory_1$$ = factory$$;
 
 	var subset = {
-		name: name$W,
-		factory: factory_1$11
+		name: name$U,
+		factory: factory_1$$
 	};
 
 	function _typeof$8(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$8 = function _typeof(obj) { return typeof obj; }; } else { _typeof$8 = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$8(obj); }
@@ -29540,7 +29398,7 @@ var CPM = (function (exports) {
 
 	var getSafeProperty$2 = customs.getSafeProperty;
 
-	function factory$12(type, config, load, typed) {
+	function factory$10(type, config, load, typed) {
 	  var subset$1 = load(subset);
 	  /**
 	   * Retrieve part of an object:
@@ -29579,15 +29437,15 @@ var CPM = (function (exports) {
 	  };
 	}
 
-	var factory_1$12 = factory$12;
+	var factory_1$10 = factory$10;
 
 	var access = {
-		factory: factory_1$12
+		factory: factory_1$10
 	};
 
 	var getSafeProperty$3 = customs.getSafeProperty;
 
-	function factory$13(type, config, load, typed) {
+	function factory$11(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  var access$1 = load(access);
 	  /**
@@ -29783,19 +29641,19 @@ var CPM = (function (exports) {
 	  return AccessorNode;
 	}
 
-	var name$X = 'AccessorNode';
+	var name$V = 'AccessorNode';
 	var path$f = 'expression.node';
-	var factory_1$13 = factory$13;
+	var factory_1$11 = factory$11;
 
 	var AccessorNode = {
-		name: name$X,
+		name: name$V,
 		path: path$f,
-		factory: factory_1$13
+		factory: factory_1$11
 	};
 
 	var map = array.map;
 
-	function factory$14(type, config, load, typed) {
+	function factory$12(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  /**
 	   * @constructor ArrayNode
@@ -29982,14 +29840,14 @@ var CPM = (function (exports) {
 	  return ArrayNode;
 	}
 
-	var name$Y = 'ArrayNode';
+	var name$W = 'ArrayNode';
 	var path$g = 'expression.node';
-	var factory_1$14 = factory$14;
+	var factory_1$12 = factory$12;
 
 	var ArrayNode = {
-		name: name$Y,
+		name: name$W,
 		path: path$g,
-		factory: factory_1$14
+		factory: factory_1$12
 	};
 
 	function _typeof$9(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$9 = function _typeof(obj) { return typeof obj; }; } else { _typeof$9 = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$9(obj); }
@@ -29998,7 +29856,7 @@ var CPM = (function (exports) {
 
 	var setSafeProperty$2 = customs.setSafeProperty;
 
-	function factory$15(type, config, load, typed) {
+	function factory$13(type, config, load, typed) {
 	  var subset$1 = load(subset);
 	  var matrix$1 = load(matrix);
 	  /**
@@ -30042,10 +29900,10 @@ var CPM = (function (exports) {
 	  };
 	}
 
-	var factory_1$15 = factory$15;
+	var factory_1$13 = factory$13;
 
 	var assign = {
-		factory: factory_1$15
+		factory: factory_1$13
 	};
 
 	// also contains information about left/right associativity
@@ -30375,7 +30233,7 @@ var CPM = (function (exports) {
 
 	var setSafeProperty$3 = customs.setSafeProperty;
 
-	function factory$16(type, config, load, typed) {
+	function factory$14(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  var assign$1 = load(assign);
 	  var access$1 = load(access);
@@ -30682,21 +30540,21 @@ var CPM = (function (exports) {
 	  return AssignmentNode;
 	}
 
-	var name$Z = 'AssignmentNode';
+	var name$X = 'AssignmentNode';
 	var path$h = 'expression.node';
-	var factory_1$16 = factory$16;
+	var factory_1$14 = factory$14;
 
 	var AssignmentNode = {
-		name: name$Z,
+		name: name$X,
 		path: path$h,
-		factory: factory_1$16
+		factory: factory_1$14
 	};
 
 	var forEach = array.forEach;
 
 	var map$1 = array.map;
 
-	function factory$17(type, config, load, typed) {
+	function factory$15(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  var ResultSet$1 = load(ResultSet);
 	  /**
@@ -30880,17 +30738,17 @@ var CPM = (function (exports) {
 	  return BlockNode;
 	}
 
-	var name$_ = 'BlockNode';
+	var name$Y = 'BlockNode';
 	var path$i = 'expression.node';
-	var factory_1$17 = factory$17;
+	var factory_1$15 = factory$15;
 
 	var BlockNode = {
-		name: name$_,
+		name: name$Y,
 		path: path$i,
-		factory: factory_1$17
+		factory: factory_1$15
 	};
 
-	function factory$18(type, config, load, typed) {
+	function factory$16(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  var mathTypeOf = load(_typeof$4);
 	  /**
@@ -31122,21 +30980,21 @@ var CPM = (function (exports) {
 	  return ConditionalNode;
 	}
 
-	var name$$ = 'ConditionalNode';
+	var name$Z = 'ConditionalNode';
 	var path$j = 'expression.node';
-	var factory_1$18 = factory$18;
+	var factory_1$16 = factory$16;
 
 	var ConditionalNode = {
-		name: name$$,
+		name: name$Z,
 		path: path$j,
-		factory: factory_1$18
+		factory: factory_1$16
 	};
 
 	var format$3 = string.format;
 
 	var escapeLatex = latex.escape;
 
-	function factory$19(type, config, load, typed) {
+	function factory$17(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  var getType = load(_typeof$4);
 	  /**
@@ -31317,14 +31175,14 @@ var CPM = (function (exports) {
 	  return ConstantNode;
 	}
 
-	var name$10 = 'ConstantNode';
+	var name$_ = 'ConstantNode';
 	var path$k = 'expression.node';
-	var factory_1$19 = factory$19;
+	var factory_1$17 = factory$17;
 
 	var ConstantNode = {
-		name: name$10,
+		name: name$_,
 		path: path$k,
-		factory: factory_1$19
+		factory: factory_1$17
 	};
 
 	var escape = string.escape;
@@ -31339,7 +31197,7 @@ var CPM = (function (exports) {
 
 	var setSafeProperty$4 = customs.setSafeProperty;
 
-	function factory$1a(type, config, load, typed) {
+	function factory$18(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  /**
 	   * @constructor FunctionAssignmentNode
@@ -31559,21 +31417,21 @@ var CPM = (function (exports) {
 	  return FunctionAssignmentNode;
 	}
 
-	var name$11 = 'FunctionAssignmentNode';
+	var name$$ = 'FunctionAssignmentNode';
 	var path$l = 'expression.node';
-	var factory_1$1a = factory$1a;
+	var factory_1$18 = factory$18;
 
 	var FunctionAssignmentNode = {
-		name: name$11,
+		name: name$$,
 		path: path$l,
-		factory: factory_1$1a
+		factory: factory_1$18
 	};
 
 	var map$2 = array.map;
 
 	var escape$1 = string.escape;
 
-	function factory$1b(type, config, load, typed) {
+	function factory$19(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  var Range$1 = load(Range);
 	  var isArray = Array.isArray;
@@ -31842,14 +31700,14 @@ var CPM = (function (exports) {
 	  return IndexNode;
 	}
 
-	var name$12 = 'IndexNode';
+	var name$10 = 'IndexNode';
 	var path$m = 'expression.node';
-	var factory_1$1b = factory$1b;
+	var factory_1$19 = factory$19;
 
 	var IndexNode = {
-		name: name$12,
+		name: name$10,
 		path: path$m,
-		factory: factory_1$1b
+		factory: factory_1$19
 	};
 
 	function _typeof$a(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$a = function _typeof(obj) { return typeof obj; }; } else { _typeof$a = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$a(obj); }
@@ -31862,7 +31720,7 @@ var CPM = (function (exports) {
 
 	var hasOwnProperty$2 = object.hasOwnProperty;
 
-	function factory$1c(type, config, load, typed) {
+	function factory$1a(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  /**
 	   * @constructor ObjectNode
@@ -32067,14 +31925,14 @@ var CPM = (function (exports) {
 	  return ObjectNode;
 	}
 
-	var name$13 = 'ObjectNode';
+	var name$11 = 'ObjectNode';
 	var path$n = 'expression.node';
-	var factory_1$1c = factory$1c;
+	var factory_1$1a = factory$1a;
 
 	var ObjectNode = {
-		name: name$13,
+		name: name$11,
 		path: path$n,
-		factory: factory_1$1c
+		factory: factory_1$1a
 	};
 
 	var map$3 = array.map;
@@ -32087,7 +31945,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$1d(type, config, load, typed) {
+	function factory$1b(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  /**
 	   * @constructor OperatorNode
@@ -32759,17 +32617,17 @@ var CPM = (function (exports) {
 	  return OperatorNode;
 	}
 
-	var name$14 = 'OperatorNode';
+	var name$12 = 'OperatorNode';
 	var path$o = 'expression.node';
-	var factory_1$1d = factory$1d;
+	var factory_1$1b = factory$1b;
 
 	var OperatorNode = {
-		name: name$14,
+		name: name$12,
 		path: path$o,
-		factory: factory_1$1d
+		factory: factory_1$1b
 	};
 
-	function factory$1e(type, config, load, typed) {
+	function factory$1c(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  /**
 	   * @constructor ParenthesisNode
@@ -32925,14 +32783,14 @@ var CPM = (function (exports) {
 	  return ParenthesisNode;
 	}
 
-	var name$15 = 'ParenthesisNode';
+	var name$13 = 'ParenthesisNode';
 	var path$p = 'expression.node';
-	var factory_1$1e = factory$1e;
+	var factory_1$1c = factory$1c;
 
 	var ParenthesisNode = {
-		name: name$15,
+		name: name$13,
 		path: path$p,
-		factory: factory_1$1e
+		factory: factory_1$1c
 	};
 
 	var escape$4 = string.escape;
@@ -32941,7 +32799,7 @@ var CPM = (function (exports) {
 
 	var getSafeProperty$6 = customs.getSafeProperty;
 
-	function factory$1f(type, config, load, typed, math) {
+	function factory$1d(type, config, load, typed, math) {
 	  var Node$1 = load(Node);
 	  /**
 	   * Check whether some name is a valueless unit like "inch".
@@ -33136,17 +32994,17 @@ var CPM = (function (exports) {
 	  return SymbolNode;
 	}
 
-	var name$16 = 'SymbolNode';
+	var name$14 = 'SymbolNode';
 	var path$q = 'expression.node';
 	var math$8 = true; // request access to the math namespace as 5th argument of the factory function
 
-	var factory_1$1f = factory$1f;
+	var factory_1$1d = factory$1d;
 
 	var SymbolNode = {
-		name: name$16,
+		name: name$14,
 		path: path$q,
 		math: math$8,
-		factory: factory_1$1f
+		factory: factory_1$1d
 	};
 
 	function _typeof$b(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$b = function _typeof(obj) { return typeof obj; }; } else { _typeof$b = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$b(obj); }
@@ -33165,7 +33023,7 @@ var CPM = (function (exports) {
 
 	var getSafeProperty$7 = customs.getSafeProperty;
 
-	function factory$1g(type, config, load, typed, math) {
+	function factory$1e(type, config, load, typed, math) {
 	  var Node$1 = load(Node);
 	  var SymbolNode$1 = load(SymbolNode);
 	  /**
@@ -33614,20 +33472,20 @@ var CPM = (function (exports) {
 	  return FunctionNode;
 	}
 
-	var name$17 = 'FunctionNode';
+	var name$15 = 'FunctionNode';
 	var path$r = 'expression.node';
 	var math$9 = true; // request access to the math namespace as 5th argument of the factory function
 
-	var factory_1$1g = factory$1g;
+	var factory_1$1e = factory$1e;
 
 	var FunctionNode = {
-		name: name$17,
+		name: name$15,
 		path: path$r,
 		math: math$9,
-		factory: factory_1$1g
+		factory: factory_1$1e
 	};
 
-	function factory$1h(type, config, load, typed) {
+	function factory$1f(type, config, load, typed) {
 	  var Node$1 = load(Node);
 	  /**
 	   * @constructor RangeNode
@@ -33906,19 +33764,19 @@ var CPM = (function (exports) {
 	  return RangeNode;
 	}
 
-	var name$18 = 'RangeNode';
+	var name$16 = 'RangeNode';
 	var path$s = 'expression.node';
-	var factory_1$1h = factory$1h;
+	var factory_1$1f = factory$1f;
 
 	var RangeNode = {
-		name: name$18,
+		name: name$16,
 		path: path$s,
-		factory: factory_1$1h
+		factory: factory_1$1f
 	};
 
 	var escape$6 = string.escape;
 
-	function factory$1i(type, config, load, typed) {
+	function factory$1g(type, config, load, typed) {
 	  var Node$1 = load(Node);
 
 	  var getSafeProperty = customs.getSafeProperty;
@@ -34132,14 +33990,14 @@ var CPM = (function (exports) {
 	  return RelationalNode;
 	}
 
-	var name$19 = 'RelationalNode';
+	var name$17 = 'RelationalNode';
 	var path$t = 'expression.node';
-	var factory_1$1i = factory$1i;
+	var factory_1$1g = factory$1g;
 
 	var RelationalNode = {
-		name: name$19,
+		name: name$17,
 		path: path$t,
-		factory: factory_1$1i
+		factory: factory_1$1g
 	};
 
 	function _extends$3() { _extends$3 = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends$3.apply(this, arguments); }
@@ -34148,7 +34006,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$1j(type, config, load, typed) {
+	function factory$1h(type, config, load, typed) {
 	  var numeric$1 = load(numeric);
 	  var AccessorNode$1 = load(AccessorNode);
 	  var ArrayNode$1 = load(ArrayNode);
@@ -35843,17 +35701,17 @@ var CPM = (function (exports) {
 	  return parse;
 	}
 
-	var name$1a = 'parse';
+	var name$18 = 'parse';
 	var path$u = 'expression';
-	var factory_1$1j = factory$1j;
+	var factory_1$1h = factory$1h;
 
 	var parse = {
-		name: name$1a,
+		name: name$18,
 		path: path$u,
-		factory: factory_1$1j
+		factory: factory_1$1h
 	};
 
-	function factory$1k(type, config, load, typed, math) {
+	function factory$1i(type, config, load, typed, math) {
 	  var FunctionNode = math.expression.node.FunctionNode;
 	  var OperatorNode = math.expression.node.OperatorNode;
 	  var SymbolNode = math.expression.node.SymbolNode; // TODO commutative/associative properties rely on the arguments
@@ -36027,15 +35885,15 @@ var CPM = (function (exports) {
 	  };
 	}
 
-	var factory_1$1k = factory$1k;
+	var factory_1$1i = factory$1i;
 	var math$a = true;
 
 	var util = {
-		factory: factory_1$1k,
+		factory: factory_1$1i,
 		math: math$a
 	};
 
-	function factory$1l(type, config, load, typed, math) {
+	function factory$1j(type, config, load, typed, math) {
 	  var util$1 = load(util);
 	  var isCommutative = util$1.isCommutative;
 	  var isAssociative = util$1.isAssociative;
@@ -36327,18 +36185,18 @@ var CPM = (function (exports) {
 	}
 
 	var math$b = true;
-	var name$1b = 'simplifyConstant';
+	var name$19 = 'simplifyConstant';
 	var path$v = 'algebra.simplify';
-	var factory_1$1l = factory$1l;
+	var factory_1$1j = factory$1j;
 
 	var simplifyConstant = {
 		math: math$b,
-		name: name$1b,
+		name: name$19,
 		path: path$v,
-		factory: factory_1$1l
+		factory: factory_1$1j
 	};
 
-	function factory$1m(type, config, load, typed) {
+	function factory$1k(type, config, load, typed) {
 	  /**
 	   * Test whether a value is zero.
 	   * The function can check for zero for types `number`, `BigNumber`, `Fraction`,
@@ -36395,17 +36253,17 @@ var CPM = (function (exports) {
 	  return isZero;
 	}
 
-	var name$1c = 'isZero';
-	var factory_1$1m = factory$1m;
+	var name$1a = 'isZero';
+	var factory_1$1k = factory$1k;
 
 	var isZero = {
-		name: name$1c,
-		factory: factory_1$1m
+		name: name$1a,
+		factory: factory_1$1k
 	};
 
 	var object$4 = utils.object;
 
-	function factory$1n(type, config, load, typed) {
+	function factory$1l(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var abs = load(abs$1);
 	  var addScalar$1 = load(addScalar);
@@ -36814,18 +36672,18 @@ var CPM = (function (exports) {
 	  return lup;
 	}
 
-	var name$1d = 'lup';
-	var factory_1$1n = factory$1n;
+	var name$1b = 'lup';
+	var factory_1$1l = factory$1l;
 
 	var lup = {
-		name: name$1d,
-		factory: factory_1$1n
+		name: name$1b,
+		factory: factory_1$1l
 	};
 
 	var object$5 = utils.object;
 	var string$6 = utils.string;
 
-	function factory$1o(type, config, load, typed) {
+	function factory$1m(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var subtract$1 = load(subtract);
 	  var multiply$1 = load(multiply);
@@ -36966,15 +36824,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$1e = 'det';
-	var factory_1$1o = factory$1o;
+	var name$1c = 'det';
+	var factory_1$1m = factory$1m;
 
 	var det = {
-		name: name$1e,
-		factory: factory_1$1o
+		name: name$1c,
+		factory: factory_1$1m
 	};
 
-	function factory$1p(type, config, load, typed) {
+	function factory$1n(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var divideScalar$1 = load(divideScalar);
 	  var addScalar$1 = load(addScalar);
@@ -37172,17 +37030,17 @@ var CPM = (function (exports) {
 	  return inv;
 	}
 
-	var name$1f = 'inv';
-	var factory_1$1p = factory$1p;
+	var name$1d = 'inv';
+	var factory_1$1n = factory$1n;
 
 	var inv = {
-		name: name$1f,
-		factory: factory_1$1p
+		name: name$1d,
+		factory: factory_1$1n
 	};
 
 	var extend$2 = object.extend;
 
-	function factory$1q(type, config, load, typed) {
+	function factory$1o(type, config, load, typed) {
 	  var divideScalar$1 = load(divideScalar);
 	  var multiply$1 = load(multiply);
 	  var inv$1 = load(inv);
@@ -37250,15 +37108,15 @@ var CPM = (function (exports) {
 	  return divide;
 	}
 
-	var name$1g = 'divide';
-	var factory_1$1q = factory$1q;
+	var name$1e = 'divide';
+	var factory_1$1o = factory$1o;
 
 	var divide$1 = {
-		name: name$1g,
-		factory: factory_1$1q
+		name: name$1e,
+		factory: factory_1$1o
 	};
 
-	function factory$1r(type, config, load, typed, math) {
+	function factory$1p(type, config, load, typed, math) {
 	  var equal$1 = load(equal);
 	  var isZero$1 = load(isZero);
 	  var add = load(add$1);
@@ -37444,18 +37302,18 @@ var CPM = (function (exports) {
 	}
 
 	var math$c = true;
-	var name$1h = 'simplifyCore';
+	var name$1f = 'simplifyCore';
 	var path$w = 'algebra.simplify';
-	var factory_1$1r = factory$1r;
+	var factory_1$1p = factory$1p;
 
 	var simplifyCore = {
 		math: math$c,
-		name: name$1h,
+		name: name$1f,
 		path: path$w,
-		factory: factory_1$1r
+		factory: factory_1$1p
 	};
 
-	function factory$1s(type, config, load, typed, math) {
+	function factory$1q(type, config, load, typed, math) {
 	  var Node = math.expression.node.Node;
 	  var OperatorNode = math.expression.node.OperatorNode;
 	  var FunctionNode = math.expression.node.FunctionNode;
@@ -37513,20 +37371,20 @@ var CPM = (function (exports) {
 	}
 
 	var math$d = true;
-	var name$1i = 'resolve';
+	var name$1g = 'resolve';
 	var path$x = 'algebra.simplify';
-	var factory_1$1s = factory$1s;
+	var factory_1$1q = factory$1q;
 
 	var resolve = {
 		math: math$d,
-		name: name$1i,
+		name: name$1g,
 		path: path$x,
-		factory: factory_1$1s
+		factory: factory_1$1q
 	};
 
 	function _typeof$c(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof$c = function _typeof(obj) { return typeof obj; }; } else { _typeof$c = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof$c(obj); }
 
-	function factory$1t(type, config, load, typed, math) {
+	function factory$1r(type, config, load, typed, math) {
 	  var parse$1 = load(parse);
 	  var equal$1 = load(equal);
 	  var ConstantNode$1 = load(ConstantNode);
@@ -38283,16 +38141,16 @@ var CPM = (function (exports) {
 	}
 
 	var math$e = true;
-	var name$1j = 'simplify';
-	var factory_1$1t = factory$1t;
+	var name$1h = 'simplify';
+	var factory_1$1r = factory$1r;
 
 	var simplify = {
 		math: math$e,
-		name: name$1j,
-		factory: factory_1$1t
+		name: name$1h,
+		factory: factory_1$1r
 	};
 
-	function factory$1u(type, config, load, typed) {
+	function factory$1s(type, config, load, typed) {
 	  var parse$1 = load(parse);
 	  var simplify$1 = load(simplify);
 	  var equal$1 = load(equal);
@@ -38575,11 +38433,6 @@ var CPM = (function (exports) {
 	          }
 
 	          break;
-
-	        case 'pow':
-	          constNodes[arg1] = constNodes[node.args[1]]; // Pass to pow operator node parser
-
-	          return _derivative(new OperatorNode$1('^', 'pow', [arg0, node.args[1]]), constNodes);
 
 	        case 'exp':
 	          // d/dx(e^x) = e^x
@@ -38875,7 +38728,7 @@ var CPM = (function (exports) {
 
 	  function funcArgsCheck(node) {
 	    // TODO add min, max etc
-	    if ((node.name === 'log' || node.name === 'nthRoot' || node.name === 'pow') && node.args.length === 2) {
+	    if ((node.name === 'log' || node.name === 'nthRoot') && node.args.length === 2) {
 	      return;
 	    } // There should be an incorrect number of arguments if we reach here
 	    // Change all args to constants to avoid unidentified
@@ -38905,15 +38758,15 @@ var CPM = (function (exports) {
 	  return derivative;
 	}
 
-	var name$1k = 'derivative';
-	var factory_1$1u = factory$1u;
+	var name$1i = 'derivative';
+	var factory_1$1s = factory$1s;
 
 	var derivative = {
-		name: name$1k,
-		factory: factory_1$1u
+		name: name$1i,
+		factory: factory_1$1s
 	};
 
-	function factory$1v(type, config, load, typed) {
+	function factory$1t(type, config, load, typed) {
 	  var parse$1 = load(parse);
 	  /**
 	   * Parse an expression. Returns a node tree, which can be evaluated by
@@ -38961,15 +38814,15 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$1l = 'parse';
-	var factory_1$1v = factory$1v;
+	var name$1j = 'parse';
+	var factory_1$1t = factory$1t;
 
 	var parse$1 = {
-		name: name$1l,
-		factory: factory_1$1v
+		name: name$1j,
+		factory: factory_1$1t
 	};
 
-	function factory$1w(type, config, load, typed) {
+	function factory$1u(type, config, load, typed) {
 	  var simplify$1 = load(simplify);
 	  var simplifyCore$1 = load(simplifyCore);
 	  var simplifyConstant$1 = load(simplifyConstant);
@@ -39806,19 +39659,19 @@ var CPM = (function (exports) {
 	} // end of factory
 
 
-	var name$1m = 'rationalize';
-	var factory_1$1w = factory$1w;
+	var name$1k = 'rationalize';
+	var factory_1$1u = factory$1u;
 
 	var rationalize = {
-		name: name$1m,
-		factory: factory_1$1w
+		name: name$1k,
+		factory: factory_1$1u
 	};
 
-	var nearlyEqual$6 = number.nearlyEqual;
+	var nearlyEqual$4 = number.nearlyEqual;
 
 
 
-	function factory$1x(type, config, load, typed) {
+	function factory$1v(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var algorithm03$1 = load(algorithm03);
 	  var algorithm07$1 = load(algorithm07);
@@ -39944,7 +39797,7 @@ var CPM = (function (exports) {
 	      return x !== y;
 	    },
 	    'number, number': function numberNumber(x, y) {
-	      return !nearlyEqual$6(x, y, config.epsilon);
+	      return !nearlyEqual$4(x, y, config.epsilon);
 	    },
 	    'BigNumber, BigNumber': function BigNumberBigNumber(x, y) {
 	      return !nearlyEqual(x, y, config.epsilon);
@@ -39970,15 +39823,15 @@ var CPM = (function (exports) {
 	  return unequal;
 	}
 
-	var name$1n = 'unequal';
-	var factory_1$1x = factory$1x;
+	var name$1l = 'unequal';
+	var factory_1$1v = factory$1v;
 
 	var unequal = {
-		name: name$1n,
-		factory: factory_1$1x
+		name: name$1l,
+		factory: factory_1$1v
 	};
 
-	function factory$1y(type, config, load, typed) {
+	function factory$1w(type, config, load, typed) {
 	  /**
 	   * Compute the sign of a value. The sign of a value x is:
 	   *
@@ -40034,15 +39887,15 @@ var CPM = (function (exports) {
 	  return sign;
 	}
 
-	var name$1o = 'sign';
-	var factory_1$1y = factory$1y;
+	var name$1m = 'sign';
+	var factory_1$1w = factory$1w;
 
 	var sign$1 = {
-		name: name$1o,
-		factory: factory_1$1y
+		name: name$1m,
+		factory: factory_1$1w
 	};
 
-	function factory$1z(type, config, load, typed) {
+	function factory$1x(type, config, load, typed) {
 	  /**
 	   * Calculate the square root of a value.
 	   *
@@ -40112,15 +39965,15 @@ var CPM = (function (exports) {
 	  return sqrt;
 	}
 
-	var name$1p = 'sqrt';
-	var factory_1$1z = factory$1z;
+	var name$1n = 'sqrt';
+	var factory_1$1x = factory$1x;
 
 	var sqrt$1 = {
-		name: name$1p,
-		factory: factory_1$1z
+		name: name$1n,
+		factory: factory_1$1x
 	};
 
-	function factory$1A(type, config, load, typed) {
+	function factory$1y(type, config, load, typed) {
 	  /**
 	   * Compute the complex conjugate of a complex value.
 	   * If `x = a+bi`, the complex conjugate of `x` is `a - bi`.
@@ -40166,15 +40019,15 @@ var CPM = (function (exports) {
 	  return conj;
 	}
 
-	var name$1q = 'conj';
-	var factory_1$1A = factory$1A;
+	var name$1o = 'conj';
+	var factory_1$1y = factory$1y;
 
 	var conj = {
-		name: name$1q,
-		factory: factory_1$1A
+		name: name$1o,
+		factory: factory_1$1y
 	};
 
-	function factory$1B(type, config, load, typed) {
+	function factory$1z(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var zeros$1 = load(zeros);
 	  var identity$1 = load(identity);
@@ -40397,15 +40250,15 @@ var CPM = (function (exports) {
 	  return qr;
 	}
 
-	var name$1r = 'qr';
-	var factory_1$1B = factory$1B;
+	var name$1p = 'qr';
+	var factory_1$1z = factory$1z;
 
 	var qr = {
-		name: name$1r,
-		factory: factory_1$1B
+		name: name$1p,
+		factory: factory_1$1z
 	};
 
-	function factory$1C() {
+	function factory$1A() {
 	  /**
 	   * This function "flips" its input about the integer -1.
 	   *
@@ -40421,17 +40274,17 @@ var CPM = (function (exports) {
 	  return csFlip;
 	}
 
-	var name$1s = 'csFlip';
+	var name$1q = 'csFlip';
 	var path$y = 'algebra.sparse';
-	var factory_1$1C = factory$1C;
+	var factory_1$1A = factory$1A;
 
 	var csFlip = {
-		name: name$1s,
+		name: name$1q,
 		path: path$y,
-		factory: factory_1$1C
+		factory: factory_1$1A
 	};
 
-	function factory$1D() {
+	function factory$1B() {
 	  /**
 	   * Keeps entries in the matrix when the callback function returns true, removes the entry otherwise
 	   *
@@ -40496,17 +40349,17 @@ var CPM = (function (exports) {
 	  return csFkeep;
 	}
 
-	var name$1t = 'csFkeep';
+	var name$1r = 'csFkeep';
 	var path$z = 'algebra.sparse';
-	var factory_1$1D = factory$1D;
+	var factory_1$1B = factory$1B;
 
 	var csFkeep = {
-		name: name$1t,
+		name: name$1r,
 		path: path$z,
-		factory: factory_1$1D
+		factory: factory_1$1B
 	};
 
-	function factory$1E() {
+	function factory$1C() {
 	  /**
 	   * Depth-first search and postorder of a tree rooted at node j
 	   *
@@ -40553,21 +40406,21 @@ var CPM = (function (exports) {
 	  return csTdfs;
 	}
 
-	var name$1u = 'csTdfs';
+	var name$1s = 'csTdfs';
 	var path$A = 'algebra.sparse';
-	var factory_1$1E = factory$1E;
+	var factory_1$1C = factory$1C;
 
 	var csTdfs = {
-		name: name$1u,
+		name: name$1s,
 		path: path$A,
-		factory: factory_1$1E
+		factory: factory_1$1C
 	};
 
 	var clone$5 = object.clone;
 
 	var format$4 = string.format;
 
-	function factory$1F(type, config, load, typed) {
+	function factory$1D(type, config, load, typed) {
 	  var latex$1 = latex;
 
 	  var matrix$1 = load(matrix);
@@ -40743,15 +40596,15 @@ var CPM = (function (exports) {
 	  return transpose;
 	}
 
-	var name$1v = 'transpose';
-	var factory_1$1F = factory$1F;
+	var name$1t = 'transpose';
+	var factory_1$1D = factory$1D;
 
 	var transpose = {
-		name: name$1v,
-		factory: factory_1$1F
+		name: name$1t,
+		factory: factory_1$1D
 	};
 
-	function factory$1G(type, config, load) {
+	function factory$1E(type, config, load) {
 	  var csFlip$1 = load(csFlip);
 	  var csFkeep$1 = load(csFkeep);
 	  var csTdfs$1 = load(csTdfs);
@@ -41377,17 +41230,17 @@ var CPM = (function (exports) {
 	  return csAmd;
 	}
 
-	var name$1w = 'csAmd';
+	var name$1u = 'csAmd';
 	var path$B = 'algebra.sparse';
-	var factory_1$1G = factory$1G;
+	var factory_1$1E = factory$1E;
 
 	var csAmd = {
-		name: name$1w,
+		name: name$1u,
 		path: path$B,
-		factory: factory_1$1G
+		factory: factory_1$1E
 	};
 
-	function factory$1H(type) {
+	function factory$1F(type) {
 	  var SparseMatrix = type.SparseMatrix;
 	  /**
 	   * Permutes a sparse matrix C = P * A * Q
@@ -41457,17 +41310,17 @@ var CPM = (function (exports) {
 	  return csPermute;
 	}
 
-	var name$1x = 'csPermute';
+	var name$1v = 'csPermute';
 	var path$C = 'algebra.sparse';
-	var factory_1$1H = factory$1H;
+	var factory_1$1F = factory$1F;
 
 	var csPermute = {
-		name: name$1x,
+		name: name$1v,
 		path: path$C,
-		factory: factory_1$1H
+		factory: factory_1$1F
 	};
 
-	function factory$1I() {
+	function factory$1G() {
 	  /**
 	   * Computes the elimination tree of Matrix A (using triu(A)) or the
 	   * elimination tree of A'A without forming A'A.
@@ -41545,17 +41398,17 @@ var CPM = (function (exports) {
 	  return csEtree;
 	}
 
-	var name$1y = 'csEtree';
+	var name$1w = 'csEtree';
 	var path$D = 'algebra.sparse';
-	var factory_1$1I = factory$1I;
+	var factory_1$1G = factory$1G;
 
 	var csEtree = {
-		name: name$1y,
+		name: name$1w,
 		path: path$D,
-		factory: factory_1$1I
+		factory: factory_1$1G
 	};
 
-	function factory$1J(type, config, load) {
+	function factory$1H(type, config, load) {
 	  var csTdfs$1 = load(csTdfs);
 	  /**
 	   * Post order a tree of forest
@@ -41619,17 +41472,17 @@ var CPM = (function (exports) {
 	  return csPost;
 	}
 
-	var name$1z = 'csPost';
+	var name$1x = 'csPost';
 	var path$E = 'algebra.sparse';
-	var factory_1$1J = factory$1J;
+	var factory_1$1H = factory$1H;
 
 	var csPost = {
-		name: name$1z,
+		name: name$1x,
 		path: path$E,
-		factory: factory_1$1J
+		factory: factory_1$1H
 	};
 
-	function factory$1K() {
+	function factory$1I() {
 	  /**
 	   * This function determines if j is a leaf of the ith row subtree.
 	   * Consider A(i,j), node j in ith row subtree and return lca(jprev,j)
@@ -41689,17 +41542,17 @@ var CPM = (function (exports) {
 	  return csLeaf;
 	}
 
-	var name$1A = 'csLeaf';
+	var name$1y = 'csLeaf';
 	var path$F = 'algebra.sparse';
-	var factory_1$1K = factory$1K;
+	var factory_1$1I = factory$1I;
 
 	var csLeaf = {
-		name: name$1A,
+		name: name$1y,
 		path: path$F,
-		factory: factory_1$1K
+		factory: factory_1$1I
 	};
 
-	function factory$1L(type, config, load) {
+	function factory$1J(type, config, load) {
 	  var transpose$1 = load(transpose);
 	  var csLeaf$1 = load(csLeaf);
 	  /**
@@ -41837,17 +41690,17 @@ var CPM = (function (exports) {
 	  return csCounts;
 	}
 
-	var name$1B = 'csCounts';
+	var name$1z = 'csCounts';
 	var path$G = 'algebra.sparse';
-	var factory_1$1L = factory$1L;
+	var factory_1$1J = factory$1J;
 
 	var csCounts = {
-		name: name$1B,
+		name: name$1z,
 		path: path$G,
-		factory: factory_1$1L
+		factory: factory_1$1J
 	};
 
-	function factory$1M(type, config, load) {
+	function factory$1K(type, config, load) {
 	  var csAmd$1 = load(csAmd);
 	  var csPermute$1 = load(csPermute);
 	  var csEtree$1 = load(csEtree);
@@ -42030,21 +41883,21 @@ var CPM = (function (exports) {
 	  return csSqr;
 	}
 
-	var name$1C = 'csSqr';
+	var name$1A = 'csSqr';
 	var path$H = 'algebra.sparse';
-	var factory_1$1M = factory$1M;
+	var factory_1$1K = factory$1K;
 
 	var csSqr = {
-		name: name$1C,
+		name: name$1A,
 		path: path$H,
-		factory: factory_1$1M
+		factory: factory_1$1K
 	};
 
-	var nearlyEqual$7 = number.nearlyEqual;
+	var nearlyEqual$5 = number.nearlyEqual;
 
 
 
-	function factory$1N(type, config, load, typed) {
+	function factory$1L(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var algorithm03$1 = load(algorithm03);
 	  var algorithm07$1 = load(algorithm07);
@@ -42087,7 +41940,7 @@ var CPM = (function (exports) {
 	      return x >= y;
 	    },
 	    'number, number': function numberNumber(x, y) {
-	      return x >= y || nearlyEqual$7(x, y, config.epsilon);
+	      return x >= y || nearlyEqual$5(x, y, config.epsilon);
 	    },
 	    'BigNumber, BigNumber': function BigNumberBigNumber(x, y) {
 	      return x.gte(y) || nearlyEqual(x, y, config.epsilon);
@@ -42156,15 +42009,15 @@ var CPM = (function (exports) {
 	  return largerEq;
 	}
 
-	var name$1D = 'largerEq';
-	var factory_1$1N = factory$1N;
+	var name$1B = 'largerEq';
+	var factory_1$1L = factory$1L;
 
 	var largerEq = {
-		name: name$1D,
-		factory: factory_1$1N
+		name: name$1B,
+		factory: factory_1$1L
 	};
 
-	function factory$1O() {
+	function factory$1M() {
 	  /**
 	   * Checks if the node at w[j] is marked
 	   *
@@ -42181,17 +42034,17 @@ var CPM = (function (exports) {
 	  return csMarked;
 	}
 
-	var name$1E = 'csMarked';
+	var name$1C = 'csMarked';
 	var path$I = 'algebra.sparse';
-	var factory_1$1O = factory$1O;
+	var factory_1$1M = factory$1M;
 
 	var csMarked = {
-		name: name$1E,
+		name: name$1C,
 		path: path$I,
-		factory: factory_1$1O
+		factory: factory_1$1M
 	};
 
-	function factory$1P(type, config, load) {
+	function factory$1N(type, config, load) {
 	  var csFlip$1 = load(csFlip);
 	  /**
 	   * Marks the node at w[j]
@@ -42210,17 +42063,17 @@ var CPM = (function (exports) {
 	  return csMark;
 	}
 
-	var name$1F = 'csMark';
+	var name$1D = 'csMark';
 	var path$J = 'algebra.sparse';
-	var factory_1$1P = factory$1P;
+	var factory_1$1N = factory$1N;
 
 	var csMark = {
-		name: name$1F,
+		name: name$1D,
 		path: path$J,
-		factory: factory_1$1P
+		factory: factory_1$1N
 	};
 
-	function factory$1Q(type, config, load) {
+	function factory$1O(type, config, load) {
 	  var csFlip$1 = load(csFlip);
 	  /**
 	   * Flips the value if it is negative of returns the same value otherwise.
@@ -42238,17 +42091,17 @@ var CPM = (function (exports) {
 	  return csUnflip;
 	}
 
-	var name$1G = 'csUnflip';
+	var name$1E = 'csUnflip';
 	var path$K = 'algebra.sparse';
-	var factory_1$1Q = factory$1Q;
+	var factory_1$1O = factory$1O;
 
 	var csUnflip = {
-		name: name$1G,
+		name: name$1E,
 		path: path$K,
-		factory: factory_1$1Q
+		factory: factory_1$1O
 	};
 
-	function factory$1R(type, config, load) {
+	function factory$1P(type, config, load) {
 	  var csMarked$1 = load(csMarked);
 	  var csMark$1 = load(csMark);
 	  var csUnflip$1 = load(csUnflip);
@@ -42332,17 +42185,17 @@ var CPM = (function (exports) {
 	  return csDfs;
 	}
 
-	var name$1H = 'csDfs';
+	var name$1F = 'csDfs';
 	var path$L = 'algebra.sparse';
-	var factory_1$1R = factory$1R;
+	var factory_1$1P = factory$1P;
 
 	var csDfs = {
-		name: name$1H,
+		name: name$1F,
 		path: path$L,
-		factory: factory_1$1R
+		factory: factory_1$1P
 	};
 
-	function factory$1S(type, config, load) {
+	function factory$1Q(type, config, load) {
 	  var csDfs$1 = load(csDfs);
 	  var csMarked$1 = load(csMarked);
 	  var csMark$1 = load(csMark);
@@ -42399,17 +42252,17 @@ var CPM = (function (exports) {
 	  return csReach;
 	}
 
-	var name$1I = 'csReach';
+	var name$1G = 'csReach';
 	var path$M = 'algebra.sparse';
-	var factory_1$1S = factory$1S;
+	var factory_1$1Q = factory$1Q;
 
 	var csReach = {
-		name: name$1I,
+		name: name$1G,
 		path: path$M,
-		factory: factory_1$1S
+		factory: factory_1$1Q
 	};
 
-	function factory$1T(type, config, load) {
+	function factory$1R(type, config, load) {
 	  var divideScalar$1 = load(divideScalar);
 	  var multiply$1 = load(multiply);
 	  var subtract$1 = load(subtract);
@@ -42495,17 +42348,17 @@ var CPM = (function (exports) {
 	  return csSpsolve;
 	}
 
-	var name$1J = 'csSpsolve';
+	var name$1H = 'csSpsolve';
 	var path$N = 'algebra.sparse';
-	var factory_1$1T = factory$1T;
+	var factory_1$1R = factory$1R;
 
 	var csSpsolve = {
-		name: name$1J,
+		name: name$1H,
 		path: path$N,
-		factory: factory_1$1T
+		factory: factory_1$1R
 	};
 
-	function factory$1U(type, config, load) {
+	function factory$1S(type, config, load) {
 	  var abs = load(abs$1);
 	  var divideScalar$1 = load(divideScalar);
 	  var multiply$1 = load(multiply);
@@ -42695,20 +42548,20 @@ var CPM = (function (exports) {
 	  return csLu;
 	}
 
-	var name$1K = 'csLu';
+	var name$1I = 'csLu';
 	var path$O = 'algebra.sparse';
-	var factory_1$1U = factory$1U;
+	var factory_1$1S = factory$1S;
 
 	var csLu = {
-		name: name$1K,
+		name: name$1I,
 		path: path$O,
-		factory: factory_1$1U
+		factory: factory_1$1S
 	};
 
 	var number$4 = utils.number;
 	var isInteger$7 = number$4.isInteger;
 
-	function factory$1V(type, config, load, typed) {
+	function factory$1T(type, config, load, typed) {
 	  var csSqr$1 = load(csSqr);
 	  var csLu$1 = load(csLu);
 	  /**
@@ -42780,19 +42633,19 @@ var CPM = (function (exports) {
 	  return slu;
 	}
 
-	var name$1L = 'slu';
-	var factory_1$1V = factory$1V;
+	var name$1J = 'slu';
+	var factory_1$1T = factory$1T;
 
 	var slu = {
-		name: name$1L,
-		factory: factory_1$1V
+		name: name$1J,
+		factory: factory_1$1T
 	};
 
 	var string$7 = utils.string;
 	var array$3 = utils.array;
 	var isArray$3 = Array.isArray;
 
-	function factory$1W(type) {
+	function factory$1U(type) {
 	  var DenseMatrix = type.DenseMatrix;
 	  /**
 	   * Validates matrix and column vector b for backward/forward substitution algorithms.
@@ -42970,13 +42823,13 @@ var CPM = (function (exports) {
 	  return solveValidation;
 	}
 
-	var factory_1$1W = factory$1W;
+	var factory_1$1U = factory$1U;
 
 	var solveValidation = {
-		factory: factory_1$1W
+		factory: factory_1$1U
 	};
 
-	function factory$1X(type, config, load, typed) {
+	function factory$1V(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var divideScalar$1 = load(divideScalar);
 	  var multiplyScalar$1 = load(multiplyScalar);
@@ -43158,15 +43011,15 @@ var CPM = (function (exports) {
 	  return lsolve;
 	}
 
-	var name$1M = 'lsolve';
-	var factory_1$1X = factory$1X;
+	var name$1K = 'lsolve';
+	var factory_1$1V = factory$1V;
 
 	var lsolve = {
-		name: name$1M,
-		factory: factory_1$1X
+		name: name$1K,
+		factory: factory_1$1V
 	};
 
-	function factory$1Y() {
+	function factory$1W() {
 	  /**
 	   * Permutes a vector; x = P'b. In MATLAB notation, x(p)=b.
 	   *
@@ -43201,17 +43054,17 @@ var CPM = (function (exports) {
 	  return csIpvec;
 	}
 
-	var name$1N = 'csIpvec';
+	var name$1L = 'csIpvec';
 	var path$P = 'algebra.sparse';
-	var factory_1$1Y = factory$1Y;
+	var factory_1$1W = factory$1W;
 
 	var csIpvec = {
-		name: name$1N,
+		name: name$1L,
 		path: path$P,
-		factory: factory_1$1Y
+		factory: factory_1$1W
 	};
 
-	function factory$1Z(type, config, load, typed) {
+	function factory$1X(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var divideScalar$1 = load(divideScalar);
 	  var multiplyScalar$1 = load(multiplyScalar);
@@ -43394,17 +43247,17 @@ var CPM = (function (exports) {
 	  return usolve;
 	}
 
-	var name$1O = 'usolve';
-	var factory_1$1Z = factory$1Z;
+	var name$1M = 'usolve';
+	var factory_1$1X = factory$1X;
 
 	var usolve = {
-		name: name$1O,
-		factory: factory_1$1Z
+		name: name$1M,
+		factory: factory_1$1X
 	};
 
 	var isArray$4 = Array.isArray;
 
-	function factory$1_(type, config, load, typed) {
+	function factory$1Y(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var lup$1 = load(lup);
 	  var slu$1 = load(slu);
@@ -43524,12 +43377,12 @@ var CPM = (function (exports) {
 	  return lusolve;
 	}
 
-	var name$1P = 'lusolve';
-	var factory_1$1_ = factory$1_;
+	var name$1N = 'lusolve';
+	var factory_1$1Y = factory$1Y;
 
 	var lusolve = {
-		name: name$1P,
-		factory: factory_1$1_
+		name: name$1N,
+		factory: factory_1$1Y
 	};
 
 	var algebra = [derivative, // simplify
@@ -43538,7 +43391,7 @@ var CPM = (function (exports) {
 	qr, lup, slu, // solver
 	lsolve, lusolve, usolve];
 
-	function factory$1$(type, config, load, typed) {
+	function factory$1Z(type, config, load, typed) {
 	  /**
 	   * Test whether a value is negative: smaller than zero.
 	   * The function supports types `number`, `BigNumber`, `Fraction`, and `Unit`.
@@ -43588,15 +43441,15 @@ var CPM = (function (exports) {
 	  return isNegative;
 	}
 
-	var name$1Q = 'isNegative';
-	var factory_1$1$ = factory$1$;
+	var name$1O = 'isNegative';
+	var factory_1$1Z = factory$1Z;
 
 	var isNegative = {
-		name: name$1Q,
-		factory: factory_1$1$
+		name: name$1O,
+		factory: factory_1$1Z
 	};
 
-	function factory$20(type, config, load, typed) {
+	function factory$1_(type, config, load, typed) {
 	  var unaryMinus$1 = load(unaryMinus);
 	  var isNegative$1 = load(isNegative);
 	  var matrix$1 = load(matrix);
@@ -43764,15 +43617,74 @@ var CPM = (function (exports) {
 	  return negate ? -result : result;
 	};
 
-	var name$1R = 'cbrt';
-	var factory_1$20 = factory$20;
+	var name$1P = 'cbrt';
+	var factory_1$1_ = factory$1_;
 
 	var cbrt$1 = {
-		name: name$1R,
-		factory: factory_1$20
+		name: name$1P,
+		factory: factory_1$1_
 	};
 
-	function factory$21(type, config, load, typed) {
+	function factory$1$(type, config, load, typed) {
+	  /**
+	   * Round a value towards plus infinity
+	   * If `x` is complex, both real and imaginary part are rounded towards plus infinity.
+	   * For matrices, the function is evaluated element wise.
+	   *
+	   * Syntax:
+	   *
+	   *    math.ceil(x)
+	   *
+	   * Examples:
+	   *
+	   *    math.ceil(3.2)               // returns number 4
+	   *    math.ceil(3.8)               // returns number 4
+	   *    math.ceil(-4.2)              // returns number -4
+	   *    math.ceil(-4.7)              // returns number -4
+	   *
+	   *    const c = math.complex(3.2, -2.7)
+	   *    math.ceil(c)                 // returns Complex 4 - 2i
+	   *
+	   *    math.ceil([3.2, 3.8, -4.7])  // returns Array [4, 4, -4]
+	   *
+	   * See also:
+	   *
+	   *    floor, fix, round
+	   *
+	   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix} x  Number to be rounded
+	   * @return {number | BigNumber | Fraction | Complex | Array | Matrix} Rounded value
+	   */
+	  var ceil = typed('ceil', {
+	    'number': Math.ceil,
+	    'Complex': function Complex(x) {
+	      return x.ceil();
+	    },
+	    'BigNumber': function BigNumber(x) {
+	      return x.ceil();
+	    },
+	    'Fraction': function Fraction(x) {
+	      return x.ceil();
+	    },
+	    'Array | Matrix': function ArrayMatrix(x) {
+	      // deep map collection, skip zeros since ceil(0) = 0
+	      return deepMap(x, ceil, true);
+	    }
+	  });
+	  ceil.toTex = {
+	    1: "\\left\\lceil${args[0]}\\right\\rceil"
+	  };
+	  return ceil;
+	}
+
+	var name$1Q = 'ceil';
+	var factory_1$1$ = factory$1$;
+
+	var ceil$1 = {
+		name: name$1Q,
+		factory: factory_1$1$
+	};
+
+	function factory$20(type, config, load, typed) {
 	  /**
 	   * Compute the cube of a value, `x * x * x`.
 	   * For matrices, the function is evaluated element wise.
@@ -43824,15 +43736,15 @@ var CPM = (function (exports) {
 	  return cube;
 	}
 
-	var name$1S = 'cube';
-	var factory_1$21 = factory$21;
+	var name$1R = 'cube';
+	var factory_1$20 = factory$20;
 
 	var cube = {
-		name: name$1S,
-		factory: factory_1$21
+		name: name$1R,
+		factory: factory_1$20
 	};
 
-	function factory$22(type, config, load, typed) {
+	function factory$21(type, config, load, typed) {
 	  var equalScalar$1 = load(equalScalar);
 	  var SparseMatrix = type.SparseMatrix;
 	  /**
@@ -43942,15 +43854,15 @@ var CPM = (function (exports) {
 	  return algorithm02;
 	}
 
-	var name$1T = 'algorithm02';
-	var factory_1$22 = factory$22;
+	var name$1S = 'algorithm02';
+	var factory_1$21 = factory$21;
 
 	var algorithm02 = {
-		name: name$1T,
-		factory: factory_1$22
+		name: name$1S,
+		factory: factory_1$21
 	};
 
-	function factory$23(type, config, load, typed) {
+	function factory$22(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var divideScalar$1 = load(divideScalar);
 
@@ -44043,15 +43955,15 @@ var CPM = (function (exports) {
 	  return dotDivide;
 	}
 
-	var name$1U = 'dotDivide';
-	var factory_1$23 = factory$23;
+	var name$1T = 'dotDivide';
+	var factory_1$22 = factory$22;
 
 	var dotDivide = {
-		name: name$1U,
-		factory: factory_1$23
+		name: name$1T,
+		factory: factory_1$22
 	};
 
-	function factory$24(type, config, load, typed) {
+	function factory$23(type, config, load, typed) {
 	  var equalScalar$1 = load(equalScalar);
 	  var SparseMatrix = type.SparseMatrix;
 	  /**
@@ -44188,15 +44100,15 @@ var CPM = (function (exports) {
 	  return algorithm09;
 	}
 
-	var name$1V = 'algorithm09';
-	var factory_1$24 = factory$24;
+	var name$1U = 'algorithm09';
+	var factory_1$23 = factory$23;
 
 	var algorithm09 = {
-		name: name$1V,
-		factory: factory_1$24
+		name: name$1U,
+		factory: factory_1$23
 	};
 
-	function factory$25(type, config, load, typed) {
+	function factory$24(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var multiplyScalar$1 = load(multiplyScalar);
 
@@ -44287,15 +44199,15 @@ var CPM = (function (exports) {
 	  return dotMultiply;
 	}
 
-	var name$1W = 'dotMultiply';
-	var factory_1$25 = factory$25;
+	var name$1V = 'dotMultiply';
+	var factory_1$24 = factory$24;
 
 	var dotMultiply = {
-		name: name$1W,
-		factory: factory_1$25
+		name: name$1V,
+		factory: factory_1$24
 	};
 
-	function factory$26(type, config, load, typed) {
+	function factory$25(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var pow = load(pow$1);
 
@@ -44384,15 +44296,15 @@ var CPM = (function (exports) {
 	  return dotPow;
 	}
 
-	var name$1X = 'dotPow';
-	var factory_1$26 = factory$26;
+	var name$1W = 'dotPow';
+	var factory_1$25 = factory$25;
 
 	var dotPow = {
-		name: name$1X,
-		factory: factory_1$26
+		name: name$1W,
+		factory: factory_1$25
 	};
 
-	function factory$27(type, config, load, typed) {
+	function factory$26(type, config, load, typed) {
 	  /**
 	   * Calculate the exponent of a value.
 	   * For matrices, the function is evaluated element wise.
@@ -44440,15 +44352,15 @@ var CPM = (function (exports) {
 	  return exp;
 	}
 
-	var name$1Y = 'exp';
-	var factory_1$27 = factory$27;
+	var name$1X = 'exp';
+	var factory_1$26 = factory$26;
 
 	var exp$1 = {
-		name: name$1Y,
-		factory: factory_1$27
+		name: name$1X,
+		factory: factory_1$26
 	};
 
-	function factory$28(type, config, load, typed) {
+	function factory$27(type, config, load, typed) {
 	  var latex$1 = latex;
 	  /**
 	   * Calculate the value of subtracting 1 from the exponential value.
@@ -44508,10 +44420,68 @@ var CPM = (function (exports) {
 	  return expm1;
 	}
 
-	var name$1Z = 'expm1';
-	var factory_1$28 = factory$28;
+	var name$1Y = 'expm1';
+	var factory_1$27 = factory$27;
 
 	var expm1 = {
+		name: name$1Y,
+		factory: factory_1$27
+	};
+
+	function factory$28(type, config, load, typed) {
+	  /**
+	   * Round a value towards minus infinity.
+	   * For matrices, the function is evaluated element wise.
+	   *
+	   * Syntax:
+	   *
+	   *    math.floor(x)
+	   *
+	   * Examples:
+	   *
+	   *    math.floor(3.2)              // returns number 3
+	   *    math.floor(3.8)              // returns number 3
+	   *    math.floor(-4.2)             // returns number -5
+	   *    math.floor(-4.7)             // returns number -5
+	   *
+	   *    const c = math.complex(3.2, -2.7)
+	   *    math.floor(c)                // returns Complex 3 - 3i
+	   *
+	   *    math.floor([3.2, 3.8, -4.7]) // returns Array [3, 3, -5]
+	   *
+	   * See also:
+	   *
+	   *    ceil, fix, round
+	   *
+	   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix} x  Number to be rounded
+	   * @return {number | BigNumber | Fraction | Complex | Array | Matrix} Rounded value
+	   */
+	  var floor = typed('floor', {
+	    'number': Math.floor,
+	    'Complex': function Complex(x) {
+	      return x.floor();
+	    },
+	    'BigNumber': function BigNumber(x) {
+	      return x.floor();
+	    },
+	    'Fraction': function Fraction(x) {
+	      return x.floor();
+	    },
+	    'Array | Matrix': function ArrayMatrix(x) {
+	      // deep map collection, skip zeros since floor(0) = 0
+	      return deepMap(x, floor, true);
+	    }
+	  });
+	  floor.toTex = {
+	    1: "\\left\\lfloor${args[0]}\\right\\rfloor"
+	  };
+	  return floor;
+	}
+
+	var name$1Z = 'floor';
+	var factory_1$28 = factory$28;
+
+	var floor$1 = {
 		name: name$1Z,
 		factory: factory_1$28
 	};
@@ -49732,141 +49702,6 @@ var CPM = (function (exports) {
 
 	var logical = [and, not, or, xor];
 
-	var arraySize = array.size;
-
-
-
-
-
-	function factory$2O(type, config, load, typed) {
-	  var isInteger = load(isInteger$k);
-	  /**
-	   * Apply a function that maps an array to a scalar
-	   * along a given axis of a matrix or array.
-	   * Returns a new matrix or array with one less dimension than the input.
-	   *
-	   * Syntax:
-	   *
-	   *     math.apply(A, dim, callback)
-	   *
-	   * Where:
-	   *
-	   * - `dim: number` is a zero-based dimension over which to concatenate the matrices.
-	   *
-	   * Examples:
-	   *
-	   *    const A = [[1, 2], [3, 4]]
-	   *    const sum = math.sum
-	   *
-	   *    math.apply(A, 0, sum)             // returns [4, 6]
-	   *    math.apply(A, 1, sum)             // returns [3, 7]
-	   *
-	   * See also:
-	   *
-	   *    map, filter, forEach
-	   *
-	   * @param {Array | Matrix} array   The input Matrix
-	   * @param {number} dim             The dimension along which the callback is applied
-	   * @param {Function} callback      The callback function that is applied. This Function
-	   *                                 should take an array or 1-d matrix as an input and
-	   *                                 return a number.
-	   * @return {Array | Matrix} res    The residual matrix with the function applied over some dimension.
-	   */
-
-	  var apply = typed('apply', {
-	    'Array | Matrix, number | BigNumber, function': function ArrayMatrixNumberBigNumberFunction(mat, dim, callback) {
-	      if (!isInteger(dim)) {
-	        throw new TypeError('Integer number expected for dimension');
-	      }
-
-	      var size = Array.isArray(mat) ? arraySize(mat) : mat.size();
-
-	      if (dim < 0 || dim >= size.length) {
-	        throw new IndexError_1(dim, size.length);
-	      }
-
-	      if (isMatrix(mat)) {
-	        return mat.create(_apply(mat.valueOf(), dim, callback));
-	      } else {
-	        return _apply(mat, dim, callback);
-	      }
-	    }
-	  });
-	  apply.toTex = undefined; // use default template
-
-	  return apply;
-	}
-	/**
-	 * Recursively reduce a matrix
-	 * @param {Array} mat
-	 * @param {number} dim
-	 * @param {Function} callback
-	 * @returns {Array} ret
-	 * @private
-	 */
-
-
-	function _apply(mat, dim, callback) {
-	  var i, ret, tran;
-
-	  if (dim <= 0) {
-	    if (!Array.isArray(mat[0])) {
-	      return callback(mat);
-	    } else {
-	      tran = _switch(mat);
-	      ret = [];
-
-	      for (i = 0; i < tran.length; i++) {
-	        ret[i] = _apply(tran[i], dim - 1, callback);
-	      }
-
-	      return ret;
-	    }
-	  } else {
-	    ret = [];
-
-	    for (i = 0; i < mat.length; i++) {
-	      ret[i] = _apply(mat[i], dim - 1, callback);
-	    }
-
-	    return ret;
-	  }
-	}
-	/**
-	 * Transpose a matrix
-	 * @param {Array} mat
-	 * @returns {Array} ret
-	 * @private
-	 */
-
-
-	function _switch(mat) {
-	  var I = mat.length;
-	  var J = mat[0].length;
-	  var i, j;
-	  var ret = [];
-
-	  for (j = 0; j < J; j++) {
-	    var tmp = [];
-
-	    for (i = 0; i < I; i++) {
-	      tmp.push(mat[i][j]);
-	    }
-
-	    ret.push(tmp);
-	  }
-
-	  return ret;
-	}
-
-	var name$2D = 'apply';
-	var factory_1$2O = factory$2O;
-
-	var apply = {
-		name: name$2D,
-		factory: factory_1$2O
-	};
-
 	var clone$6 = object.clone;
 
 
@@ -49875,7 +49710,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$2P(type, config, load, typed) {
+	function factory$2O(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var isInteger = load(isInteger$k);
 	  /**
@@ -50009,15 +49844,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2E = 'concat';
-	var factory_1$2P = factory$2P;
+	var name$2D = 'concat';
+	var factory_1$2O = factory$2O;
 
 	var concat = {
-		name: name$2E,
-		factory: factory_1$2P
+		name: name$2D,
+		factory: factory_1$2O
 	};
 
-	function factory$2Q(type, config, load, typed) {
+	function factory$2P(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var subtract$1 = load(subtract);
 	  var multiply$1 = load(multiply);
@@ -50100,15 +49935,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2F = 'cross';
-	var factory_1$2Q = factory$2Q;
+	var name$2E = 'cross';
+	var factory_1$2P = factory$2P;
 
 	var cross = {
-		name: name$2F,
-		factory: factory_1$2Q
+		name: name$2E,
+		factory: factory_1$2P
 	};
 
-	function factory$2R(type, config, load, typed) {
+	function factory$2Q(type, config, load, typed) {
 	  var transpose$1 = load(transpose);
 	  var conj$1 = load(conj);
 
@@ -50148,17 +49983,17 @@ var CPM = (function (exports) {
 	  return ctranspose;
 	}
 
-	var name$2G = 'ctranspose';
-	var factory_1$2R = factory$2R;
+	var name$2F = 'ctranspose';
+	var factory_1$2Q = factory$2Q;
 
 	var ctranspose = {
-		name: name$2G,
-		factory: factory_1$2R
+		name: name$2F,
+		factory: factory_1$2Q
 	};
 
 	var isInteger$l = number.isInteger;
 
-	function factory$2S(type, config, load, typed) {
+	function factory$2R(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Create a diagonal matrix or retrieve the diagonal of a matrix
@@ -50312,17 +50147,17 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2H = 'diag';
-	var factory_1$2S = factory$2S;
+	var name$2G = 'diag';
+	var factory_1$2R = factory$2R;
 
 	var diag = {
-		name: name$2H,
-		factory: factory_1$2S
+		name: name$2G,
+		factory: factory_1$2R
 	};
 
 	var size$1 = array.size;
 
-	function factory$2T(type, config, load, typed) {
+	function factory$2S(type, config, load, typed) {
 	  var add = load(add$1);
 	  var multiply$1 = load(multiply);
 	  /**
@@ -50392,31 +50227,31 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2I = 'dot';
-	var factory_1$2T = factory$2T;
+	var name$2H = 'dot';
+	var factory_1$2S = factory$2S;
 
 	var dot = {
-		name: name$2I,
-		factory: factory_1$2T
+		name: name$2H,
+		factory: factory_1$2S
 	};
 
-	function factory$2U(type, config, load, typed) {
+	function factory$2T(type, config, load, typed) {
 	  return function eye() {
 	    throw new Error('Function "eye" is renamed to "identity" since mathjs version 5.0.0. ' + 'To keep eye working, create an alias for it using "math.import({eye: math.identity}, {override: true})"');
 	  };
 	}
 
-	var name$2J = 'eye';
-	var factory_1$2U = factory$2U;
+	var name$2I = 'eye';
+	var factory_1$2T = factory$2T;
 
 	var eye = {
-		name: name$2J,
-		factory: factory_1$2U
+		name: name$2I,
+		factory: factory_1$2T
 	};
 
 	var format$5 = string.format;
 
-	function factory$2V(type, config, load, typed) {
+	function factory$2U(type, config, load, typed) {
 	  var abs = load(abs$1);
 	  var add = load(add$1);
 	  var identity$1 = load(identity);
@@ -50581,12 +50416,12 @@ var CPM = (function (exports) {
 	  return expm;
 	}
 
-	var name$2K = 'expm';
-	var factory_1$2V = factory$2V;
+	var name$2J = 'expm';
+	var factory_1$2U = factory$2U;
 
 	var expm = {
-		name: name$2K,
-		factory: factory_1$2V
+		name: name$2J,
+		factory: factory_1$2U
 	};
 
 	var filter = array.filter;
@@ -50595,7 +50430,7 @@ var CPM = (function (exports) {
 
 	var maxArgumentCount$1 = _function.maxArgumentCount;
 
-	function factory$2W(type, config, load, typed) {
+	function factory$2V(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Filter the items in an array or one dimensional matrix.
@@ -50666,19 +50501,19 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$2L = 'filter';
-	var factory_1$2W = factory$2W;
+	var name$2K = 'filter';
+	var factory_1$2V = factory$2V;
 
 	var filter_1 = {
-		name: name$2L,
-		factory: factory_1$2W
+		name: name$2K,
+		factory: factory_1$2V
 	};
 
 	var clone$7 = object.clone;
 
 	var _flatten = array.flatten;
 
-	function factory$2X(type, config, load, typed) {
+	function factory$2W(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Flatten a multi dimensional matrix into a single dimensional matrix.
@@ -50715,19 +50550,19 @@ var CPM = (function (exports) {
 	  return flatten;
 	}
 
-	var name$2M = 'flatten';
-	var factory_1$2X = factory$2X;
+	var name$2L = 'flatten';
+	var factory_1$2W = factory$2W;
 
 	var flatten$1 = {
-		name: name$2M,
-		factory: factory_1$2X
+		name: name$2L,
+		factory: factory_1$2W
 	};
 
 	var maxArgumentCount$2 = _function.maxArgumentCount;
 
 	var forEach$2 = array.forEach;
 
-	function factory$2Y(type, config, load, typed) {
+	function factory$2X(type, config, load, typed) {
 	  /**
 	   * Iterate over all elements of a matrix/array, and executes the given callback function.
 	   *
@@ -50795,17 +50630,17 @@ var CPM = (function (exports) {
 	  recurse(array, []);
 	}
 
-	var name$2N = 'forEach';
-	var factory_1$2Y = factory$2Y;
+	var name$2M = 'forEach';
+	var factory_1$2X = factory$2X;
 
 	var forEach_1 = {
-		name: name$2N,
-		factory: factory_1$2Y
+		name: name$2M,
+		factory: factory_1$2X
 	};
 
 	var size$2 = array.size;
 
-	function factory$2Z(type, config, load, typed) {
+	function factory$2Y(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var multiplyScalar$1 = load(multiplyScalar);
 	  /**
@@ -50889,17 +50724,17 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2O = 'kron';
-	var factory_1$2Z = factory$2Z;
+	var name$2N = 'kron';
+	var factory_1$2Y = factory$2Y;
 
 	var kron = {
-		name: name$2O,
-		factory: factory_1$2Z
+		name: name$2N,
+		factory: factory_1$2Y
 	};
 
 	var maxArgumentCount$3 = _function.maxArgumentCount;
 
-	function factory$2_(type, config, load, typed) {
+	function factory$2Z(type, config, load, typed) {
 	  /**
 	   * Create a new matrix or array with the results of the callback function executed on
 	   * each entry of the matrix/array.
@@ -50969,19 +50804,19 @@ var CPM = (function (exports) {
 	  return recurse(array, []);
 	}
 
-	var name$2P = 'map';
-	var factory_1$2_ = factory$2_;
+	var name$2O = 'map';
+	var factory_1$2Z = factory$2Z;
 
 	var map$5 = {
-		name: name$2P,
-		factory: factory_1$2_
+		name: name$2O,
+		factory: factory_1$2Z
 	};
 
 	var isInteger$m = number.isInteger;
 
 	var resize$1 = array.resize;
 
-	function factory$2$(type, config, load, typed) {
+	function factory$2_(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Create a matrix filled with ones. The created matrix can have one or
@@ -51105,15 +50940,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2Q = 'ones';
-	var factory_1$2$ = factory$2$;
+	var name$2P = 'ones';
+	var factory_1$2_ = factory$2_;
 
 	var ones = {
-		name: name$2Q,
-		factory: factory_1$2$
+		name: name$2P,
+		factory: factory_1$2_
 	};
 
-	function factory$30(type, config, load, typed) {
+	function factory$2$(type, config, load, typed) {
 	  /**
 	   * Test whether a value is NaN (not a number).
 	   * The function supports types `number`, `BigNumber`, `Fraction`, `Unit` and `Complex`.
@@ -51166,19 +51001,19 @@ var CPM = (function (exports) {
 	  return isNaN;
 	}
 
-	var name$2R = 'isNaN';
-	var factory_1$30 = factory$30;
+	var name$2Q = 'isNaN';
+	var factory_1$2$ = factory$2$;
 
 	var _isNaN = {
-		name: name$2R,
-		factory: factory_1$30
+		name: name$2Q,
+		factory: factory_1$2$
 	};
 
-	var nearlyEqual$8 = number.nearlyEqual;
+	var nearlyEqual$6 = number.nearlyEqual;
 
 
 
-	function factory$31(type, config, load, typed) {
+	function factory$30(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var algorithm03$1 = load(algorithm03);
 	  var algorithm05$1 = load(algorithm05);
@@ -51228,7 +51063,7 @@ var CPM = (function (exports) {
 	      return x === y ? 0 : x > y ? 1 : -1;
 	    },
 	    'number, number': function numberNumber(x, y) {
-	      return x === y || nearlyEqual$8(x, y, config.epsilon) ? 0 : x > y ? 1 : -1;
+	      return x === y || nearlyEqual$6(x, y, config.epsilon) ? 0 : x > y ? 1 : -1;
 	    },
 	    'BigNumber, BigNumber': function BigNumberBigNumber(x, y) {
 	      return x.eq(y) || nearlyEqual(x, y, config.epsilon) ? new type.BigNumber(0) : new type.BigNumber(x.cmp(y));
@@ -51296,17 +51131,17 @@ var CPM = (function (exports) {
 	  return compare;
 	}
 
-	var name$2S = 'compare';
-	var factory_1$31 = factory$31;
+	var name$2R = 'compare';
+	var factory_1$30 = factory$30;
 
 	var compare = {
-		name: name$2S,
-		factory: factory_1$31
+		name: name$2R,
+		factory: factory_1$30
 	};
 
 	var isInteger$n = number.isInteger;
 
-	function factory$32(type, config, load, typed) {
+	function factory$31(type, config, load, typed) {
 	  var isNumeric$1 = load(isNumeric);
 	  var isNaN = load(_isNaN);
 	  var asc = load(compare);
@@ -51446,144 +51281,16 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2T = 'partitionSelect';
-	var factory_1$32 = factory$32;
+	var name$2S = 'partitionSelect';
+	var factory_1$31 = factory$31;
 
 	var partitionSelect = {
-		name: name$2T,
-		factory: factory_1$32
+		name: name$2S,
+		factory: factory_1$31
 	};
 
-	var nearlyEqual$9 = number.nearlyEqual;
-
-
-
-	function factory$33(type, config, load, typed) {
+	function factory$32(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
-	  var algorithm03$1 = load(algorithm03);
-	  var algorithm07$1 = load(algorithm07);
-	  var algorithm12$1 = load(algorithm12);
-	  var algorithm13$1 = load(algorithm13);
-	  var algorithm14$1 = load(algorithm14);
-
-	  var latex$1 = latex;
-	  /**
-	   * Test whether value x is smaller or equal to y.
-	   *
-	   * The function returns true when x is smaller than y or the relative
-	   * difference between x and y is smaller than the configured epsilon. The
-	   * function cannot be used to compare values smaller than approximately 2.22e-16.
-	   *
-	   * For matrices, the function is evaluated element wise.
-	   * Strings are compared by their numerical value.
-	   *
-	   * Syntax:
-	   *
-	   *    math.smallerEq(x, y)
-	   *
-	   * Examples:
-	   *
-	   *    math.smaller(1 + 2, 3)        // returns false
-	   *    math.smallerEq(1 + 2, 3)      // returns true
-	   *
-	   * See also:
-	   *
-	   *    equal, unequal, smaller, larger, largerEq, compare
-	   *
-	   * @param  {number | BigNumber | Fraction | boolean | Unit | string | Array | Matrix} x First value to compare
-	   * @param  {number | BigNumber | Fraction | boolean | Unit | string | Array | Matrix} y Second value to compare
-	   * @return {boolean | Array | Matrix} Returns true when the x is smaller than y, else returns false
-	   */
-
-
-	  var smallerEq = typed('smallerEq', {
-	    'boolean, boolean': function booleanBoolean(x, y) {
-	      return x <= y;
-	    },
-	    'number, number': function numberNumber(x, y) {
-	      return x <= y || nearlyEqual$9(x, y, config.epsilon);
-	    },
-	    'BigNumber, BigNumber': function BigNumberBigNumber(x, y) {
-	      return x.lte(y) || nearlyEqual(x, y, config.epsilon);
-	    },
-	    'Fraction, Fraction': function FractionFraction(x, y) {
-	      return x.compare(y) !== 1;
-	    },
-	    'Complex, Complex': function ComplexComplex() {
-	      throw new TypeError('No ordering relation is defined for complex numbers');
-	    },
-	    'Unit, Unit': function UnitUnit(x, y) {
-	      if (!x.equalBase(y)) {
-	        throw new Error('Cannot compare units with different base');
-	      }
-
-	      return smallerEq(x.value, y.value);
-	    },
-	    'SparseMatrix, SparseMatrix': function SparseMatrixSparseMatrix(x, y) {
-	      return algorithm07$1(x, y, smallerEq);
-	    },
-	    'SparseMatrix, DenseMatrix': function SparseMatrixDenseMatrix(x, y) {
-	      return algorithm03$1(y, x, smallerEq, true);
-	    },
-	    'DenseMatrix, SparseMatrix': function DenseMatrixSparseMatrix(x, y) {
-	      return algorithm03$1(x, y, smallerEq, false);
-	    },
-	    'DenseMatrix, DenseMatrix': function DenseMatrixDenseMatrix(x, y) {
-	      return algorithm13$1(x, y, smallerEq);
-	    },
-	    'Array, Array': function ArrayArray(x, y) {
-	      // use matrix implementation
-	      return smallerEq(matrix$1(x), matrix$1(y)).valueOf();
-	    },
-	    'Array, Matrix': function ArrayMatrix(x, y) {
-	      // use matrix implementation
-	      return smallerEq(matrix$1(x), y);
-	    },
-	    'Matrix, Array': function MatrixArray(x, y) {
-	      // use matrix implementation
-	      return smallerEq(x, matrix$1(y));
-	    },
-	    'SparseMatrix, any': function SparseMatrixAny(x, y) {
-	      return algorithm12$1(x, y, smallerEq, false);
-	    },
-	    'DenseMatrix, any': function DenseMatrixAny(x, y) {
-	      return algorithm14$1(x, y, smallerEq, false);
-	    },
-	    'any, SparseMatrix': function anySparseMatrix(x, y) {
-	      return algorithm12$1(y, x, smallerEq, true);
-	    },
-	    'any, DenseMatrix': function anyDenseMatrix(x, y) {
-	      return algorithm14$1(y, x, smallerEq, true);
-	    },
-	    'Array, any': function ArrayAny(x, y) {
-	      // use matrix implementation
-	      return algorithm14$1(matrix$1(x), y, smallerEq, false).valueOf();
-	    },
-	    'any, Array': function anyArray(x, y) {
-	      // use matrix implementation
-	      return algorithm14$1(matrix$1(y), x, smallerEq, true).valueOf();
-	    }
-	  });
-	  smallerEq.toTex = {
-	    2: "\\left(${args[0]}".concat(latex$1.operators['smallerEq'], "${args[1]}\\right)")
-	  };
-	  return smallerEq;
-	}
-
-	var name$2U = 'smallerEq';
-	var factory_1$33 = factory$33;
-
-	var smallerEq = {
-		name: name$2U,
-		factory: factory_1$33
-	};
-
-	function factory$34(type, config, load, typed) {
-	  var matrix$1 = load(matrix);
-	  var smaller$1 = load(smaller);
-	  var larger$1 = load(larger);
-	  var smallerEq$1 = load(smallerEq);
-	  var largerEq$1 = load(largerEq);
 	  var ZERO = new type.BigNumber(0);
 	  var ONE = new type.BigNumber(1);
 	  /**
@@ -51700,12 +51407,12 @@ var CPM = (function (exports) {
 	    var x = start;
 
 	    if (step > 0) {
-	      while (smaller$1(x, end)) {
+	      while (x < end) {
 	        array.push(x);
 	        x += step;
 	      }
 	    } else if (step < 0) {
-	      while (larger$1(x, end)) {
+	      while (x > end) {
 	        array.push(x);
 	        x += step;
 	      }
@@ -51728,12 +51435,12 @@ var CPM = (function (exports) {
 	    var x = start;
 
 	    if (step > 0) {
-	      while (smallerEq$1(x, end)) {
+	      while (x <= end) {
 	        array.push(x);
 	        x += step;
 	      }
 	    } else if (step < 0) {
-	      while (largerEq$1(x, end)) {
+	      while (x >= end) {
 	        array.push(x);
 	        x += step;
 	      }
@@ -51756,12 +51463,12 @@ var CPM = (function (exports) {
 	    var x = start;
 
 	    if (step.gt(ZERO)) {
-	      while (smaller$1(x, end)) {
+	      while (x.lt(end)) {
 	        array.push(x);
 	        x = x.plus(step);
 	      }
 	    } else if (step.lt(ZERO)) {
-	      while (larger$1(x, end)) {
+	      while (x.gt(end)) {
 	        array.push(x);
 	        x = x.plus(step);
 	      }
@@ -51784,12 +51491,12 @@ var CPM = (function (exports) {
 	    var x = start;
 
 	    if (step.gt(ZERO)) {
-	      while (smallerEq$1(x, end)) {
+	      while (x.lte(end)) {
 	        array.push(x);
 	        x = x.plus(step);
 	      }
 	    } else if (step.lt(ZERO)) {
-	      while (largerEq$1(x, end)) {
+	      while (x.gte(end)) {
 	        array.push(x);
 	        x = x.plus(step);
 	      }
@@ -51844,15 +51551,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2V = 'range';
-	var factory_1$34 = factory$34;
+	var name$2T = 'range';
+	var factory_1$32 = factory$32;
 
 	var range = {
-		name: name$2V,
-		factory: factory_1$34
+		name: name$2T,
+		factory: factory_1$32
 	};
 
-	function factory$35(type, config, load, typed) {
+	function factory$33(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var isInteger = load(isInteger$k);
 	  /**
@@ -51914,12 +51621,12 @@ var CPM = (function (exports) {
 	  return reshape;
 	}
 
-	var name$2W = 'reshape';
-	var factory_1$35 = factory$35;
+	var name$2U = 'reshape';
+	var factory_1$33 = factory$33;
 
 	var reshape = {
-		name: name$2W,
-		factory: factory_1$35
+		name: name$2U,
+		factory: factory_1$33
 	};
 
 	var isInteger$o = number.isInteger;
@@ -51930,7 +51637,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$36(type, config, load, typed) {
+	function factory$34(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Resize a matrix
@@ -52055,15 +51762,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2X = 'resize';
-	var factory_1$36 = factory$36;
+	var name$2V = 'resize';
+	var factory_1$34 = factory$34;
 
 	var resize$2 = {
-		name: name$2X,
-		factory: factory_1$36
+		name: name$2V,
+		factory: factory_1$34
 	};
 
-	function factory$37(type, config, load, typed) {
+	function factory$35(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Calculate the size of a matrix or scalar.
@@ -52108,12 +51815,12 @@ var CPM = (function (exports) {
 	  return size;
 	}
 
-	var name$2Y = 'size';
-	var factory_1$37 = factory$37;
+	var name$2W = 'size';
+	var factory_1$35 = factory$35;
 
 	var size$3 = {
-		name: name$2Y,
-		factory: factory_1$37
+		name: name$2W,
+		factory: factory_1$35
 	};
 
 	/*
@@ -52161,7 +51868,7 @@ var CPM = (function (exports) {
 		return 0;
 	};
 
-	function factory$38(type, config, load, typed) {
+	function factory$36(type, config, load, typed) {
 	  var getTypeOf = load(_typeof$4);
 	  var compare$1 = load(compare);
 	  var compareBooleans = compare$1.signatures['boolean,boolean'];
@@ -52454,17 +52161,17 @@ var CPM = (function (exports) {
 	  return 0;
 	}
 
-	var name$2Z = 'compareNatural';
-	var factory_1$38 = factory$38;
+	var name$2X = 'compareNatural';
+	var factory_1$36 = factory$36;
 
 	var compareNatural = {
-		name: name$2Z,
-		factory: factory_1$38
+		name: name$2X,
+		factory: factory_1$36
 	};
 
 	var size$4 = array.size;
 
-	function factory$39(type, config, load, typed) {
+	function factory$37(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var compareAsc = load(compare);
 
@@ -52586,12 +52293,12 @@ var CPM = (function (exports) {
 	  return sort;
 	}
 
-	var name$2_ = 'sort';
-	var factory_1$39 = factory$39;
+	var name$2Y = 'sort';
+	var factory_1$37 = factory$37;
 
 	var sort = {
-		name: name$2_,
-		factory: factory_1$39
+		name: name$2Y,
+		factory: factory_1$37
 	};
 
 	/**
@@ -52619,7 +52326,7 @@ var CPM = (function (exports) {
 	  }
 	};
 
-	var arraySize$1 = array.size;
+	var arraySize = array.size;
 
 
 
@@ -52636,7 +52343,7 @@ var CPM = (function (exports) {
 
 
 	var reduce = function (mat, dim, callback) {
-	  var size = Array.isArray(mat) ? arraySize$1(mat) : mat.size();
+	  var size = Array.isArray(mat) ? arraySize(mat) : mat.size();
 
 	  if (dim < 0 || dim >= size.length) {
 	    // TODO: would be more clear when throwing a DimensionError here
@@ -52672,7 +52379,7 @@ var CPM = (function (exports) {
 
 	      return val;
 	    } else {
-	      tran = _switch$1(mat);
+	      tran = _switch(mat);
 	      ret = [];
 
 	      for (i = 0; i < tran.length; i++) {
@@ -52699,7 +52406,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function _switch$1(mat) {
+	function _switch(mat) {
 	  var I = mat.length;
 	  var J = mat[0].length;
 	  var i, j;
@@ -52747,7 +52454,7 @@ var CPM = (function (exports) {
 	  return false;
 	};
 
-	function factory$3a(type, config, load, typed) {
+	function factory$38(type, config, load, typed) {
 	  var getType = load(_typeof$4);
 	  /**
 	   * Improve error messages for statistics functions. Errors are typically
@@ -52778,13 +52485,13 @@ var CPM = (function (exports) {
 	  };
 	}
 
-	var factory_1$3a = factory$3a;
+	var factory_1$38 = factory$38;
 
 	var improveErrorMessage = {
-		factory: factory_1$3a
+		factory: factory_1$38
 	};
 
-	function factory$3b(type, config, load, typed) {
+	function factory$39(type, config, load, typed) {
 	  var larger$1 = load(larger);
 	  var improveErrorMessage$1 = load(improveErrorMessage);
 	  /**
@@ -52882,15 +52589,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$2$ = 'max';
-	var factory_1$3b = factory$3b;
+	var name$2Z = 'max';
+	var factory_1$39 = factory$39;
 
 	var max$1 = {
-		name: name$2$,
-		factory: factory_1$3b
+		name: name$2Z,
+		factory: factory_1$39
 	};
 
-	function factory$3c(type, config, load, typed) {
+	function factory$3a(type, config, load, typed) {
 	  var abs = load(abs$1);
 	  var add = load(add$1);
 	  var multiply$1 = load(multiply);
@@ -52987,15 +52694,15 @@ var CPM = (function (exports) {
 	  return sqrtm;
 	}
 
-	var name$30 = 'sqrtm';
-	var factory_1$3c = factory$3c;
+	var name$2_ = 'sqrtm';
+	var factory_1$3a = factory$3a;
 
 	var sqrtm = {
-		name: name$30,
-		factory: factory_1$3c
+		name: name$2_,
+		factory: factory_1$3a
 	};
 
-	function factory$3d(type, config, load, typed) {
+	function factory$3b(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  /**
 	   * Squeeze a matrix, remove inner and outer singleton dimensions from a matrix.
@@ -53046,19 +52753,19 @@ var CPM = (function (exports) {
 	  return squeeze;
 	}
 
-	var name$31 = 'squeeze';
-	var factory_1$3d = factory$3d;
+	var name$2$ = 'squeeze';
+	var factory_1$3b = factory$3b;
 
 	var squeeze = {
-		name: name$31,
-		factory: factory_1$3d
+		name: name$2$,
+		factory: factory_1$3b
 	};
 
 	var clone$9 = object.clone;
 
 	var format$7 = string.format;
 
-	function factory$3e(type, config, load, typed) {
+	function factory$3c(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var add = load(add$1);
 	  /**
@@ -53192,15 +52899,15 @@ var CPM = (function (exports) {
 	  return trace;
 	}
 
-	var name$32 = 'trace';
-	var factory_1$3e = factory$3e;
+	var name$30 = 'trace';
+	var factory_1$3c = factory$3c;
 
 	var trace = {
-		name: name$32,
-		factory: factory_1$3e
+		name: name$30,
+		factory: factory_1$3c
 	};
 
-	function factory$3f(type, config, load, typed) {
+	function factory$3d(type, config, load, typed) {
 	  var getArrayDataType$1 = load(getArrayDataType);
 	  /**
 	   * Find the data type of all elements in a matrix or array,
@@ -53248,17 +52955,17 @@ var CPM = (function (exports) {
 	  return getMatrixDataType;
 	}
 
-	var name$33 = 'getMatrixDataType';
-	var factory_1$3f = factory$3f;
+	var name$31 = 'getMatrixDataType';
+	var factory_1$3d = factory$3d;
 
 	var getMatrixDataType = {
-		name: name$33,
-		factory: factory_1$3f
+		name: name$31,
+		factory: factory_1$3d
 	};
 
-	var matrix$2 = [apply, concat, cross, ctranspose, det, diag, dot, eye, expm, filter_1, flatten$1, forEach_1, identity, inv, kron, map$5, ones, partitionSelect, range, reshape, resize$2, size$3, sort, sqrtm, squeeze, subset, trace, transpose, zeros, getMatrixDataType];
+	var matrix$2 = [concat, cross, ctranspose, det, diag, dot, eye, expm, filter_1, flatten$1, forEach_1, identity, inv, kron, map$5, ones, partitionSelect, range, reshape, resize$2, size$3, sort, sqrtm, squeeze, subset, trace, transpose, zeros, getMatrixDataType];
 
-	function factory$3g(type, config, load, typed) {
+	function factory$3e(type, config, load, typed) {
 	  var add = load(addScalar);
 	  var improveErrorMessage$1 = load(improveErrorMessage);
 	  /**
@@ -53349,15 +53056,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$34 = 'sum';
-	var factory_1$3g = factory$3g;
+	var name$32 = 'sum';
+	var factory_1$3e = factory$3e;
 
 	var sum = {
-		name: name$34,
-		factory: factory_1$3g
+		name: name$32,
+		factory: factory_1$3e
 	};
 
-	function factory$3h(type, config, load, typed) {
+	function factory$3f(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var divide = load(divide$1);
 	  var sum$1 = load(sum);
@@ -53440,15 +53147,15 @@ var CPM = (function (exports) {
 	  return kldivergence;
 	}
 
-	var name$35 = 'kldivergence';
-	var factory_1$3h = factory$3h;
+	var name$33 = 'kldivergence';
+	var factory_1$3f = factory$3f;
 
 	var kldivergence = {
-		name: name$35,
-		factory: factory_1$3h
+		name: name$33,
+		factory: factory_1$3f
 	};
 
-	function factory$3i(type, config, load, typed) {
+	function factory$3g(type, config, load, typed) {
 	  var add = load(add$1);
 	  var multiply$1 = load(multiply);
 	  var divide = load(divide$1);
@@ -53494,17 +53201,17 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$36 = 'multinomial';
-	var factory_1$3i = factory$3i;
+	var name$34 = 'multinomial';
+	var factory_1$3g = factory$3g;
 
 	var multinomial = {
-		name: name$36,
-		factory: factory_1$3i
+		name: name$34,
+		factory: factory_1$3g
 	};
 
 	var isInteger$p = number.isInteger;
 
-	function factory$3j(type, config, load, typed) {
+	function factory$3h(type, config, load, typed) {
 	  var factorial$1 = load(factorial);
 
 	  var product = product_1;
@@ -53589,12 +53296,12 @@ var CPM = (function (exports) {
 	  return n.isInteger() && n.gte(0);
 	}
 
-	var name$37 = 'permutations';
-	var factory_1$3j = factory$3j;
+	var name$35 = 'permutations';
+	var factory_1$3h = factory$3h;
 
 	var permutations = {
-		name: name$37,
-		factory: factory_1$3j
+		name: name$35,
+		factory: factory_1$3h
 	};
 
 	var seedRandom = createCommonjsModule(function (module) {
@@ -53783,7 +53490,7 @@ var CPM = (function (exports) {
 
 	var singletonRandom = seedRandom();
 
-	function factory$3k(type, config, load, typed, math) {
+	function factory$3i(type, config, load, typed, math) {
 	  var random; // create a new random generator with given seed
 
 	  function setSeed(seed) {
@@ -53808,11 +53515,11 @@ var CPM = (function (exports) {
 	  return rng;
 	}
 
-	var factory_1$3k = factory$3k;
+	var factory_1$3i = factory$3i;
 	var math$f = true;
 
 	var seededRNG = {
-		factory: factory_1$3k,
+		factory: factory_1$3i,
 		math: math$f
 	};
 
@@ -53820,7 +53527,7 @@ var CPM = (function (exports) {
 	// TODO: rework to a typed function
 
 
-	function factory$3l(type, config, load, typed, math) {
+	function factory$3j(type, config, load, typed, math) {
 	  var matrix$1 = load(matrix);
 
 	  var array$1 = array; // seeded pseudo random number generator
@@ -54109,15 +53816,15 @@ var CPM = (function (exports) {
 	  return distribution;
 	}
 
-	var name$38 = 'distribution';
-	var factory_1$3l = factory$3l;
+	var name$36 = 'distribution';
+	var factory_1$3j = factory$3j;
 
 	var distribution = {
-		name: name$38,
-		factory: factory_1$3l
+		name: name$36,
+		factory: factory_1$3j
 	};
 
-	function factory$3m(type, config, load, typed) {
+	function factory$3k(type, config, load, typed) {
 	  var distribution$1 = load(distribution);
 	  /**
 	   * Random pick one or more values from a one dimensional array.
@@ -54157,15 +53864,15 @@ var CPM = (function (exports) {
 	  return pickRandom;
 	}
 
-	var name$39 = 'pickRandom';
-	var factory_1$3m = factory$3m;
+	var name$37 = 'pickRandom';
+	var factory_1$3k = factory$3k;
 
 	var pickRandom = {
-		name: name$39,
-		factory: factory_1$3m
+		name: name$37,
+		factory: factory_1$3k
 	};
 
-	function factory$3n(type, config, load, typed) {
+	function factory$3l(type, config, load, typed) {
 	  var distribution$1 = load(distribution);
 	  /**
 	   * Return a random number larger or equal to `min` and smaller than `max`
@@ -54205,15 +53912,15 @@ var CPM = (function (exports) {
 	  return random;
 	}
 
-	var name$3a = 'random';
-	var factory_1$3n = factory$3n;
+	var name$38 = 'random';
+	var factory_1$3l = factory$3l;
 
 	var random$1 = {
-		name: name$3a,
-		factory: factory_1$3n
+		name: name$38,
+		factory: factory_1$3l
 	};
 
-	function factory$3o(type, config, load, typed) {
+	function factory$3m(type, config, load, typed) {
 	  var distribution$1 = load(distribution);
 	  /**
 	   * Return a random integer number larger or equal to `min` and smaller than `max`
@@ -54251,18 +53958,18 @@ var CPM = (function (exports) {
 	  return randomInt;
 	}
 
-	var name$3b = 'randomInt';
-	var factory_1$3o = factory$3o;
+	var name$39 = 'randomInt';
+	var factory_1$3m = factory$3m;
 
 	var randomInt = {
-		name: name$3b,
-		factory: factory_1$3o
+		name: name$39,
+		factory: factory_1$3m
 	};
 
 	var probability = [// require('./distribution'), // TODO: rethink math.distribution
 	combinations, factorial, gamma, kldivergence, multinomial, permutations, pickRandom, random$1, randomInt];
 
-	function factory$3p(type, config, load, typed) {
+	function factory$3n(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 
 	  var _typeof = load(_typeof$4);
@@ -54356,15 +54063,15 @@ var CPM = (function (exports) {
 	  return compareText;
 	}
 
-	var name$3c = 'compareText';
-	var factory_1$3p = factory$3p;
+	var name$3a = 'compareText';
+	var factory_1$3n = factory$3n;
 
 	var compareText = {
-		name: name$3c,
-		factory: factory_1$3p
+		name: name$3a,
+		factory: factory_1$3n
 	};
 
-	function factory$3q(type, config, load, typed) {
+	function factory$3o(type, config, load, typed) {
 	  var equal$1 = load(equal);
 	  /**
 	   * Test element wise whether two matrices are equal.
@@ -54440,15 +54147,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3d = 'deepEqual';
-	var factory_1$3q = factory$3q;
+	var name$3b = 'deepEqual';
+	var factory_1$3o = factory$3o;
 
 	var deepEqual$1 = {
-		name: name$3d,
-		factory: factory_1$3q
+		name: name$3b,
+		factory: factory_1$3o
 	};
 
-	function factory$3r(type, config, load, typed) {
+	function factory$3p(type, config, load, typed) {
 	  var compareText$1 = load(compareText);
 	  var isZero$1 = load(isZero);
 	  /**
@@ -54488,19 +54195,143 @@ var CPM = (function (exports) {
 	  return equalText;
 	}
 
-	var name$3e = 'equalText';
-	var factory_1$3r = factory$3r;
+	var name$3c = 'equalText';
+	var factory_1$3p = factory$3p;
 
 	var equalText = {
-		name: name$3e,
-		factory: factory_1$3r
+		name: name$3c,
+		factory: factory_1$3p
+	};
+
+	var nearlyEqual$7 = number.nearlyEqual;
+
+
+
+	function factory$3q(type, config, load, typed) {
+	  var matrix$1 = load(matrix);
+	  var algorithm03$1 = load(algorithm03);
+	  var algorithm07$1 = load(algorithm07);
+	  var algorithm12$1 = load(algorithm12);
+	  var algorithm13$1 = load(algorithm13);
+	  var algorithm14$1 = load(algorithm14);
+
+	  var latex$1 = latex;
+	  /**
+	   * Test whether value x is smaller or equal to y.
+	   *
+	   * The function returns true when x is smaller than y or the relative
+	   * difference between x and y is smaller than the configured epsilon. The
+	   * function cannot be used to compare values smaller than approximately 2.22e-16.
+	   *
+	   * For matrices, the function is evaluated element wise.
+	   * Strings are compared by their numerical value.
+	   *
+	   * Syntax:
+	   *
+	   *    math.smallerEq(x, y)
+	   *
+	   * Examples:
+	   *
+	   *    math.smaller(1 + 2, 3)        // returns false
+	   *    math.smallerEq(1 + 2, 3)      // returns true
+	   *
+	   * See also:
+	   *
+	   *    equal, unequal, smaller, larger, largerEq, compare
+	   *
+	   * @param  {number | BigNumber | Fraction | boolean | Unit | string | Array | Matrix} x First value to compare
+	   * @param  {number | BigNumber | Fraction | boolean | Unit | string | Array | Matrix} y Second value to compare
+	   * @return {boolean | Array | Matrix} Returns true when the x is smaller than y, else returns false
+	   */
+
+
+	  var smallerEq = typed('smallerEq', {
+	    'boolean, boolean': function booleanBoolean(x, y) {
+	      return x <= y;
+	    },
+	    'number, number': function numberNumber(x, y) {
+	      return x <= y || nearlyEqual$7(x, y, config.epsilon);
+	    },
+	    'BigNumber, BigNumber': function BigNumberBigNumber(x, y) {
+	      return x.lte(y) || nearlyEqual(x, y, config.epsilon);
+	    },
+	    'Fraction, Fraction': function FractionFraction(x, y) {
+	      return x.compare(y) !== 1;
+	    },
+	    'Complex, Complex': function ComplexComplex() {
+	      throw new TypeError('No ordering relation is defined for complex numbers');
+	    },
+	    'Unit, Unit': function UnitUnit(x, y) {
+	      if (!x.equalBase(y)) {
+	        throw new Error('Cannot compare units with different base');
+	      }
+
+	      return smallerEq(x.value, y.value);
+	    },
+	    'SparseMatrix, SparseMatrix': function SparseMatrixSparseMatrix(x, y) {
+	      return algorithm07$1(x, y, smallerEq);
+	    },
+	    'SparseMatrix, DenseMatrix': function SparseMatrixDenseMatrix(x, y) {
+	      return algorithm03$1(y, x, smallerEq, true);
+	    },
+	    'DenseMatrix, SparseMatrix': function DenseMatrixSparseMatrix(x, y) {
+	      return algorithm03$1(x, y, smallerEq, false);
+	    },
+	    'DenseMatrix, DenseMatrix': function DenseMatrixDenseMatrix(x, y) {
+	      return algorithm13$1(x, y, smallerEq);
+	    },
+	    'Array, Array': function ArrayArray(x, y) {
+	      // use matrix implementation
+	      return smallerEq(matrix$1(x), matrix$1(y)).valueOf();
+	    },
+	    'Array, Matrix': function ArrayMatrix(x, y) {
+	      // use matrix implementation
+	      return smallerEq(matrix$1(x), y);
+	    },
+	    'Matrix, Array': function MatrixArray(x, y) {
+	      // use matrix implementation
+	      return smallerEq(x, matrix$1(y));
+	    },
+	    'SparseMatrix, any': function SparseMatrixAny(x, y) {
+	      return algorithm12$1(x, y, smallerEq, false);
+	    },
+	    'DenseMatrix, any': function DenseMatrixAny(x, y) {
+	      return algorithm14$1(x, y, smallerEq, false);
+	    },
+	    'any, SparseMatrix': function anySparseMatrix(x, y) {
+	      return algorithm12$1(y, x, smallerEq, true);
+	    },
+	    'any, DenseMatrix': function anyDenseMatrix(x, y) {
+	      return algorithm14$1(y, x, smallerEq, true);
+	    },
+	    'Array, any': function ArrayAny(x, y) {
+	      // use matrix implementation
+	      return algorithm14$1(matrix$1(x), y, smallerEq, false).valueOf();
+	    },
+	    'any, Array': function anyArray(x, y) {
+	      // use matrix implementation
+	      return algorithm14$1(matrix$1(y), x, smallerEq, true).valueOf();
+	    }
+	  });
+	  smallerEq.toTex = {
+	    2: "\\left(${args[0]}".concat(latex$1.operators['smallerEq'], "${args[1]}\\right)")
+	  };
+	  return smallerEq;
+	}
+
+	var name$3d = 'smallerEq';
+	var factory_1$3q = factory$3q;
+
+	var smallerEq = {
+		name: name$3d,
+		factory: factory_1$3q
 	};
 
 	var relational = [compare, compareNatural, compareText, deepEqual$1, equal, equalText, larger, largerEq, smaller, smallerEq, unequal];
 
 	var flatten$2 = array.flatten;
 
-	function factory$3s(type, config, load, typed) {
+	function factory$3r(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var DenseMatrix$1 = load(DenseMatrix);
 	  var size = load(size$3);
@@ -54556,12 +54387,12 @@ var CPM = (function (exports) {
 	  return setCartesian;
 	}
 
-	var name$3f = 'setCartesian';
-	var factory_1$3s = factory$3s;
+	var name$3e = 'setCartesian';
+	var factory_1$3r = factory$3r;
 
 	var setCartesian = {
-		name: name$3f,
-		factory: factory_1$3s
+		name: name$3e,
+		factory: factory_1$3r
 	};
 
 	var flatten$3 = array.flatten;
@@ -54570,7 +54401,7 @@ var CPM = (function (exports) {
 
 	var generalize = array.generalize;
 
-	function factory$3t(type, config, load, typed) {
+	function factory$3s(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var DenseMatrix$1 = load(DenseMatrix);
 	  var size = load(size$3);
@@ -54643,17 +54474,17 @@ var CPM = (function (exports) {
 	  return setDifference;
 	}
 
-	var name$3g = 'setDifference';
-	var factory_1$3t = factory$3t;
+	var name$3f = 'setDifference';
+	var factory_1$3s = factory$3s;
 
 	var setDifference = {
-		name: name$3g,
-		factory: factory_1$3t
+		name: name$3f,
+		factory: factory_1$3s
 	};
 
 	var flatten$4 = array.flatten;
 
-	function factory$3u(type, config, load, typed) {
+	function factory$3t(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var DenseMatrix$1 = load(DenseMatrix);
 	  var size = load(size$3);
@@ -54710,12 +54541,12 @@ var CPM = (function (exports) {
 	  return setDistinct;
 	}
 
-	var name$3h = 'setDistinct';
-	var factory_1$3u = factory$3u;
+	var name$3g = 'setDistinct';
+	var factory_1$3t = factory$3t;
 
 	var setDistinct = {
-		name: name$3h,
-		factory: factory_1$3u
+		name: name$3g,
+		factory: factory_1$3t
 	};
 
 	var flatten$5 = array.flatten;
@@ -54724,7 +54555,7 @@ var CPM = (function (exports) {
 
 	var generalize$1 = array.generalize;
 
-	function factory$3v(type, config, load, typed) {
+	function factory$3u(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var DenseMatrix$1 = load(DenseMatrix);
 	  var size = load(size$3);
@@ -54787,19 +54618,19 @@ var CPM = (function (exports) {
 	  return setIntersect;
 	}
 
-	var name$3i = 'setIntersect';
-	var factory_1$3v = factory$3v;
+	var name$3h = 'setIntersect';
+	var factory_1$3u = factory$3u;
 
 	var setIntersect = {
-		name: name$3i,
-		factory: factory_1$3v
+		name: name$3h,
+		factory: factory_1$3u
 	};
 
 	var flatten$6 = array.flatten;
 
 	var identify$2 = array.identify;
 
-	function factory$3w(type, config, load, typed) {
+	function factory$3v(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var size = load(size$3);
 	  var subset$1 = load(subset);
@@ -54862,17 +54693,17 @@ var CPM = (function (exports) {
 	  return setIsSubset;
 	}
 
-	var name$3j = 'setIsSubset';
-	var factory_1$3w = factory$3w;
+	var name$3i = 'setIsSubset';
+	var factory_1$3v = factory$3v;
 
 	var setIsSubset = {
-		name: name$3j,
-		factory: factory_1$3w
+		name: name$3i,
+		factory: factory_1$3v
 	};
 
 	var flatten$7 = array.flatten;
 
-	function factory$3x(type, config, load, typed) {
+	function factory$3w(type, config, load, typed) {
 	  var compareNatural$1 = load(compareNatural);
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var size = load(size$3);
@@ -54921,17 +54752,17 @@ var CPM = (function (exports) {
 	  return setMultiplicity;
 	}
 
-	var name$3k = 'setMultiplicity';
-	var factory_1$3x = factory$3x;
+	var name$3j = 'setMultiplicity';
+	var factory_1$3w = factory$3w;
 
 	var setMultiplicity = {
-		name: name$3k,
-		factory: factory_1$3x
+		name: name$3j,
+		factory: factory_1$3w
 	};
 
 	var flatten$8 = array.flatten;
 
-	function factory$3y(type, config, load, typed) {
+	function factory$3x(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var size = load(size$3);
 	  var subset$1 = load(subset);
@@ -55008,17 +54839,17 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3l = 'setPowerset';
-	var factory_1$3y = factory$3y;
+	var name$3k = 'setPowerset';
+	var factory_1$3x = factory$3x;
 
 	var setPowerset = {
-		name: name$3l,
-		factory: factory_1$3y
+		name: name$3k,
+		factory: factory_1$3x
 	};
 
 	var flatten$9 = array.flatten;
 
-	function factory$3z(type, config, load, typed) {
+	function factory$3y(type, config, load, typed) {
 	  var compareNatural$1 = load(compareNatural);
 	  /**
 	   * Count the number of elements of a (multi)set. When a second parameter is 'true', count only the unique values.
@@ -55066,17 +54897,17 @@ var CPM = (function (exports) {
 	  return setSize;
 	}
 
-	var name$3m = 'setSize';
-	var factory_1$3z = factory$3z;
+	var name$3l = 'setSize';
+	var factory_1$3y = factory$3y;
 
 	var setSize = {
-		name: name$3m,
-		factory: factory_1$3z
+		name: name$3l,
+		factory: factory_1$3y
 	};
 
 	var flatten$a = array.flatten;
 
-	function factory$3A(type, config, load, typed) {
+	function factory$3z(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var concat$1 = load(concat);
 	  var size = load(size$3);
@@ -55121,17 +54952,17 @@ var CPM = (function (exports) {
 	  return setSymDifference;
 	}
 
-	var name$3n = 'setSymDifference';
-	var factory_1$3A = factory$3A;
+	var name$3m = 'setSymDifference';
+	var factory_1$3z = factory$3z;
 
 	var setSymDifference = {
-		name: name$3n,
-		factory: factory_1$3A
+		name: name$3m,
+		factory: factory_1$3z
 	};
 
 	var flatten$b = array.flatten;
 
-	function factory$3B(type, config, load, typed) {
+	function factory$3A(type, config, load, typed) {
 	  var MatrixIndex$1 = load(MatrixIndex);
 	  var concat$1 = load(concat);
 	  var size = load(size$3);
@@ -55177,19 +55008,19 @@ var CPM = (function (exports) {
 	  return setUnion;
 	}
 
-	var name$3o = 'setUnion';
-	var factory_1$3B = factory$3B;
+	var name$3n = 'setUnion';
+	var factory_1$3A = factory$3A;
 
 	var setUnion = {
-		name: name$3o,
-		factory: factory_1$3B
+		name: name$3n,
+		factory: factory_1$3A
 	};
 
 	var set = [setCartesian, setDifference, setDistinct, setIntersect, setIsSubset, setMultiplicity, setPowerset, setSize, setSymDifference, setUnion];
 
 	var sign$2 = number.sign;
 
-	function factory$3C(type, config, load, typed) {
+	function factory$3B(type, config, load, typed) {
 	  /**
 	   * Compute the erf function of a value using a rational Chebyshev
 	   * approximations for different intervals of x.
@@ -55356,12 +55187,12 @@ var CPM = (function (exports) {
 	 */
 
 	var MAX_NUM = Math.pow(2, 53);
-	var name$3p = 'erf';
-	var factory_1$3C = factory$3C;
+	var name$3o = 'erf';
+	var factory_1$3B = factory$3B;
 
 	var erf = {
-		name: name$3p,
-		factory: factory_1$3C
+		name: name$3o,
+		factory: factory_1$3B
 	};
 
 	var special = [erf];
@@ -55370,7 +55201,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$3D(type, config, load, typed) {
+	function factory$3C(type, config, load, typed) {
 	  var add = load(addScalar);
 	  var divide = load(divideScalar);
 	  var compare$1 = load(compare);
@@ -55477,17 +55308,17 @@ var CPM = (function (exports) {
 	  return median;
 	}
 
-	var name$3q = 'median';
-	var factory_1$3D = factory$3D;
+	var name$3p = 'median';
+	var factory_1$3C = factory$3C;
 
 	var median = {
-		name: name$3q,
-		factory: factory_1$3D
+		name: name$3p,
+		factory: factory_1$3C
 	};
 
 	var flatten$d = array.flatten;
 
-	function factory$3E(type, config, load, typed) {
+	function factory$3D(type, config, load, typed) {
 	  var abs = load(abs$1);
 	  var map = load(map$5);
 	  var median$1 = load(median);
@@ -55552,12 +55383,12 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3r = 'mad';
-	var factory_1$3E = factory$3E;
+	var name$3q = 'mad';
+	var factory_1$3D = factory$3D;
 
 	var mad = {
-		name: name$3r,
-		factory: factory_1$3E
+		name: name$3q,
+		factory: factory_1$3D
 	};
 
 	var size$5 = array.size;
@@ -55568,7 +55399,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$3F(type, config, load, typed) {
+	function factory$3E(type, config, load, typed) {
 	  var add = load(add$1);
 	  var divide = load(divide$1);
 	  var improveErrorMessage$1 = load(improveErrorMessage);
@@ -55663,15 +55494,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3s = 'mean';
-	var factory_1$3F = factory$3F;
+	var name$3r = 'mean';
+	var factory_1$3E = factory$3E;
 
 	var mean = {
-		name: name$3s,
-		factory: factory_1$3F
+		name: name$3r,
+		factory: factory_1$3E
 	};
 
-	function factory$3G(type, config, load, typed) {
+	function factory$3F(type, config, load, typed) {
 	  var smaller$1 = load(smaller);
 	  var improveErrorMessage$1 = load(improveErrorMessage);
 	  /**
@@ -55769,17 +55600,17 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3t = 'min';
-	var factory_1$3G = factory$3G;
+	var name$3s = 'min';
+	var factory_1$3F = factory$3F;
 
 	var min$1 = {
-		name: name$3t,
-		factory: factory_1$3G
+		name: name$3s,
+		factory: factory_1$3F
 	};
 
 	var flatten$e = array.flatten;
 
-	function factory$3H(type, config, load, typed) {
+	function factory$3G(type, config, load, typed) {
 	  var isNaN = load(_isNaN);
 	  var isNumeric$1 = load(isNumeric);
 	  /**
@@ -55859,15 +55690,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3u = 'mode';
-	var factory_1$3H = factory$3H;
+	var name$3t = 'mode';
+	var factory_1$3G = factory$3G;
 
 	var mode = {
-		name: name$3u,
-		factory: factory_1$3H
+		name: name$3t,
+		factory: factory_1$3G
 	};
 
-	function factory$3I(type, config, load, typed) {
+	function factory$3H(type, config, load, typed) {
 	  var multiply = load(multiplyScalar);
 	  var improveErrorMessage$1 = load(improveErrorMessage);
 	  /**
@@ -55937,12 +55768,12 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3v = 'prod';
-	var factory_1$3I = factory$3I;
+	var name$3u = 'prod';
+	var factory_1$3H = factory$3H;
 
 	var prod = {
-		name: name$3v,
-		factory: factory_1$3I
+		name: name$3u,
+		factory: factory_1$3H
 	};
 
 	var isInteger$q = number.isInteger;
@@ -55953,7 +55784,7 @@ var CPM = (function (exports) {
 
 
 
-	function factory$3J(type, config, load, typed) {
+	function factory$3I(type, config, load, typed) {
 	  var add = load(add$1);
 	  var multiply$1 = load(multiply);
 	  var partitionSelect$1 = load(partitionSelect);
@@ -56218,20 +56049,19 @@ var CPM = (function (exports) {
 	  return quantileSeq;
 	}
 
-	var name$3w = 'quantileSeq';
-	var factory_1$3J = factory$3J;
+	var name$3v = 'quantileSeq';
+	var factory_1$3I = factory$3I;
 
 	var quantileSeq = {
-		name: name$3w,
-		factory: factory_1$3J
+		name: name$3v,
+		factory: factory_1$3I
 	};
 
 	var DEFAULT_NORMALIZATION = 'unbiased';
 
 
 
-	function factory$3K(type, config, load, typed) {
-	  var apply$1 = load(apply);
+	function factory$3J(type, config, load, typed) {
 	  var add = load(addScalar);
 	  var subtract$1 = load(subtract);
 	  var multiply = load(multiplyScalar);
@@ -56243,16 +56073,12 @@ var CPM = (function (exports) {
 	   * In case of a (multi dimensional) array or matrix, the variance over all
 	   * elements will be calculated.
 	   *
-	   * Additionally, it is possible to compute the variance along the rows
-	   * or columns of a matrix by specifying the dimension as the second argument.
-	   *
-	   * Optionally, the type of normalization can be specified as the final
+	   * Optionally, the type of normalization can be specified as second
 	   * parameter. The parameter `normalization` can be one of the following values:
 	   *
 	   * - 'unbiased' (default) The sum of squared errors is divided by (n - 1)
 	   * - 'uncorrected'        The sum of squared errors is divided by n
 	   * - 'biased'             The sum of squared errors is divided by (n + 1)
-	   *
 	   *
 	   * Note that older browser may not like the variable name `var`. In that
 	   * case, the function can be called as `math['var'](...)` instead of
@@ -56263,8 +56089,6 @@ var CPM = (function (exports) {
 	   *     math.var(a, b, c, ...)
 	   *     math.var(A)
 	   *     math.var(A, normalization)
-	   *     math.var(A, dimension)
-	   *     math.var(A, dimension, normalization)
 	   *
 	   * Examples:
 	   *
@@ -56274,9 +56098,6 @@ var CPM = (function (exports) {
 	   *     math.var([2, 4, 6, 8], 'biased')      // returns 4
 	   *
 	   *     math.var([[1, 2, 3], [4, 5, 6]])      // returns 3.5
-	   *     math.var([[1, 2, 3], [4, 6, 8]], 0)    // returns [4.5, 8, 12.5]
-	   *     math.var([[1, 2, 3], [4, 6, 8]], 1)    // returns [1, 4]
-	   *     math.var([[1, 2, 3], [4, 6, 8]], 1, 'biased') // returns [0.5, 2]
 	   *
 	   * See also:
 	   *
@@ -56287,8 +56108,6 @@ var CPM = (function (exports) {
 	   * @param {string} [normalization='unbiased']
 	   *                        Determines how to normalize the variance.
 	   *                        Choose 'unbiased' (default), 'uncorrected', or 'biased'.
-	   * @param dimension {number | BigNumber}
-	   *                        Determines the axis to compute the variance for a matrix
 	   * @return {*} The variance
 	   */
 
@@ -56299,12 +56118,6 @@ var CPM = (function (exports) {
 	    },
 	    // var([a, b, c, d, ...], normalization)
 	    'Array | Matrix, string': _var,
-	    // var([a, b, c, c, ...], dim)
-	    'Array | Matrix, number | BigNumber': function ArrayMatrixNumberBigNumber(array, dim) {
-	      return _varDim(array, dim, DEFAULT_NORMALIZATION);
-	    },
-	    // var([a, b, c, c, ...], dim, normalization)
-	    'Array | Matrix, number | BigNumber, string': _varDim,
 	    // var(a, b, c, d, ...)
 	    '...': function _(args) {
 	      return _var(args, DEFAULT_NORMALIZATION);
@@ -56369,31 +56182,17 @@ var CPM = (function (exports) {
 	        throw new Error('Unknown normalization "' + normalization + '". ' + 'Choose "unbiased" (default), "uncorrected", or "biased".');
 	    }
 	  }
-
-	  function _varDim(array, dim, normalization) {
-	    try {
-	      if (array.length === 0) {
-	        throw new SyntaxError('Function var requires one or more parameters (0 provided)');
-	      }
-
-	      return apply$1(array, dim, function (x) {
-	        return _var(x, normalization);
-	      });
-	    } catch (err) {
-	      throw improveErrorMessage$1(err, 'var');
-	    }
-	  }
 	}
 
-	var name$3x = 'var';
-	var factory_1$3K = factory$3K;
+	var name$3w = 'var';
+	var factory_1$3J = factory$3J;
 
 	var _var = {
-		name: name$3x,
-		factory: factory_1$3K
+		name: name$3w,
+		factory: factory_1$3J
 	};
 
-	function factory$3L(type, config, load, typed) {
+	function factory$3K(type, config, load, typed) {
 	  var sqrt = load(sqrt$1);
 	  var variance = load(_var);
 	  /**
@@ -56401,27 +56200,20 @@ var CPM = (function (exports) {
 	   * The standard deviations is defined as the square root of the variance:
 	   * `std(A) = sqrt(var(A))`.
 	   * In case of a (multi dimensional) array or matrix, the standard deviation
-	   * over all elements will be calculated by default, unless an axis is specified
-	   * in which case the standard deviation will be computed along that axis.
+	   * over all elements will be calculated.
 	   *
-	   * Additionally, it is possible to compute the standard deviation along the rows
-	   * or columns of a matrix by specifying the dimension as the second argument.
-	   *
-	   * Optionally, the type of normalization can be specified as the final
+	   * Optionally, the type of normalization can be specified as second
 	   * parameter. The parameter `normalization` can be one of the following values:
 	   *
 	   * - 'unbiased' (default) The sum of squared errors is divided by (n - 1)
 	   * - 'uncorrected'        The sum of squared errors is divided by n
 	   * - 'biased'             The sum of squared errors is divided by (n + 1)
 	   *
-	   *
 	   * Syntax:
 	   *
 	   *     math.std(a, b, c, ...)
 	   *     math.std(A)
 	   *     math.std(A, normalization)
-	   *     math.std(A, dimension)
-	   *     math.std(A, dimension, normalization)
 	   *
 	   * Examples:
 	   *
@@ -56431,9 +56223,6 @@ var CPM = (function (exports) {
 	   *     math.std([2, 4, 6, 8], 'biased')      // returns 2
 	   *
 	   *     math.std([[1, 2, 3], [4, 5, 6]])      // returns 1.8708286933869707
-	   *     math.std([[1, 2, 3], [4, 6, 8]], 0)    // returns [2.1213203435596424, 2.8284271247461903, 3.5355339059327378]
-	   *     math.std([[1, 2, 3], [4, 6, 8]], 1)    // returns [1, 2]
-	   *     math.std([[1, 2, 3], [4, 6, 8]], 1, 'biased') // returns [0.7071067811865476, 1.4142135623730951]
 	   *
 	   * See also:
 	   *
@@ -56444,8 +56233,6 @@ var CPM = (function (exports) {
 	   * @param {string} [normalization='unbiased']
 	   *                        Determines how to normalize the variance.
 	   *                        Choose 'unbiased' (default), 'uncorrected', or 'biased'.
-	   * @param dimension {number | BigNumber}
-	   *                        Determines the axis to compute the standard deviation for a matrix
 	   * @return {*} The standard deviation
 	   */
 
@@ -56454,10 +56241,6 @@ var CPM = (function (exports) {
 	    'Array | Matrix': _std,
 	    // std([a, b, c, d, ...], normalization)
 	    'Array | Matrix, string': _std,
-	    // std([a, b, c, c, ...], dim)
-	    'Array | Matrix, number | BigNumber': _std,
-	    // std([a, b, c, c, ...], dim, normalization)
-	    'Array | Matrix, number | BigNumber, string': _std,
 	    // std(a, b, c, d, ...)
 	    '...': function _(args) {
 	      return _std(args);
@@ -56484,12 +56267,12 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3y = 'std';
-	var factory_1$3L = factory$3L;
+	var name$3x = 'std';
+	var factory_1$3K = factory$3K;
 
 	var std = {
-		name: name$3y,
-		factory: factory_1$3L
+		name: name$3x,
+		factory: factory_1$3K
 	};
 
 	var statistics = [mad, max$1, mean, median, min$1, mode, prod, quantileSeq, std, sum, _var];
@@ -56498,7 +56281,7 @@ var CPM = (function (exports) {
 
 	var format$8 = string.format;
 
-	function factory$3M(type, config, load, typed) {
+	function factory$3L(type, config, load, typed) {
 	  /**
 	   * Interpolate values into a string template.
 	   *
@@ -56584,17 +56367,17 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$3z = 'print';
-	var factory_1$3M = factory$3M;
+	var name$3y = 'print';
+	var factory_1$3L = factory$3L;
 
 	var print = {
-		name: name$3z,
-		factory: factory_1$3M
+		name: name$3y,
+		factory: factory_1$3L
 	};
 
 	var string$8 = [format$2, print];
 
-	function factory$3N(type, config, load, typed) {
+	function factory$3M(type, config, load, typed) {
 	  /**
 	   * Calculate the inverse cosine of a value.
 	   *
@@ -56642,15 +56425,15 @@ var CPM = (function (exports) {
 	  return acos;
 	}
 
-	var name$3A = 'acos';
-	var factory_1$3N = factory$3N;
+	var name$3z = 'acos';
+	var factory_1$3M = factory$3M;
 
 	var acos$1 = {
-		name: name$3A,
-		factory: factory_1$3N
+		name: name$3z,
+		factory: factory_1$3M
 	};
 
-	function factory$3O(type, config, load, typed) {
+	function factory$3N(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic arccos of a value,
 	   * defined as `acosh(x) = ln(sqrt(x^2 - 1) + x)`.
@@ -56711,15 +56494,15 @@ var CPM = (function (exports) {
 	  return Math.log(Math.sqrt(x * x - 1) + x);
 	};
 
-	var name$3B = 'acosh';
-	var factory_1$3O = factory$3O;
+	var name$3A = 'acosh';
+	var factory_1$3N = factory$3N;
 
 	var acosh$1 = {
-		name: name$3B,
-		factory: factory_1$3O
+		name: name$3A,
+		factory: factory_1$3N
 	};
 
-	function factory$3P(type, config, load, typed) {
+	function factory$3O(type, config, load, typed) {
 	  /**
 	   * Calculate the inverse cotangent of a value, defined as `acot(x) = atan(1/x)`.
 	   *
@@ -56763,15 +56546,15 @@ var CPM = (function (exports) {
 	  return acot;
 	}
 
-	var name$3C = 'acot';
-	var factory_1$3P = factory$3P;
+	var name$3B = 'acot';
+	var factory_1$3O = factory$3O;
 
 	var acot = {
-		name: name$3C,
-		factory: factory_1$3P
+		name: name$3B,
+		factory: factory_1$3O
 	};
 
-	function factory$3Q(type, config, load, typed) {
+	function factory$3P(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic arccotangent of a value,
 	   * defined as `acoth(x) = atanh(1/x) = (ln((x+1)/x) + ln(x/(x-1))) / 2`.
@@ -56817,15 +56600,15 @@ var CPM = (function (exports) {
 	  return acoth;
 	}
 
-	var name$3D = 'acoth';
-	var factory_1$3Q = factory$3Q;
+	var name$3C = 'acoth';
+	var factory_1$3P = factory$3P;
 
 	var acoth = {
-		name: name$3D,
-		factory: factory_1$3Q
+		name: name$3C,
+		factory: factory_1$3P
 	};
 
-	function factory$3R(type, config, load, typed) {
+	function factory$3Q(type, config, load, typed) {
 	  /**
 	   * Calculate the inverse cosecant of a value, defined as `acsc(x) = asin(1/x)`.
 	   *
@@ -56873,15 +56656,15 @@ var CPM = (function (exports) {
 	  return acsc;
 	}
 
-	var name$3E = 'acsc';
-	var factory_1$3R = factory$3R;
+	var name$3D = 'acsc';
+	var factory_1$3Q = factory$3Q;
 
 	var acsc = {
-		name: name$3E,
-		factory: factory_1$3R
+		name: name$3D,
+		factory: factory_1$3Q
 	};
 
-	function factory$3S(type, config, load, typed) {
+	function factory$3R(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic arccosecant of a value,
 	   * defined as `acsch(x) = asinh(1/x) = ln(1/x + sqrt(1/x^2 + 1))`.
@@ -56924,15 +56707,15 @@ var CPM = (function (exports) {
 	  return acsch;
 	}
 
-	var name$3F = 'acsch';
-	var factory_1$3S = factory$3S;
+	var name$3E = 'acsch';
+	var factory_1$3R = factory$3R;
 
 	var acsch = {
-		name: name$3F,
-		factory: factory_1$3S
+		name: name$3E,
+		factory: factory_1$3R
 	};
 
-	function factory$3T(type, config, load, typed) {
+	function factory$3S(type, config, load, typed) {
 	  /**
 	   * Calculate the inverse secant of a value. Defined as `asec(x) = acos(1/x)`.
 	   *
@@ -56980,15 +56763,15 @@ var CPM = (function (exports) {
 	  return asec;
 	}
 
-	var name$3G = 'asec';
-	var factory_1$3T = factory$3T;
+	var name$3F = 'asec';
+	var factory_1$3S = factory$3S;
 
 	var asec = {
-		name: name$3G,
-		factory: factory_1$3T
+		name: name$3F,
+		factory: factory_1$3S
 	};
 
-	function factory$3U(type, config, load, typed) {
+	function factory$3T(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic arcsecant of a value,
 	   * defined as `asech(x) = acosh(1/x) = ln(sqrt(1/x^2 - 1) + 1/x)`.
@@ -57041,15 +56824,15 @@ var CPM = (function (exports) {
 	  return asech;
 	}
 
-	var name$3H = 'asech';
-	var factory_1$3U = factory$3U;
+	var name$3G = 'asech';
+	var factory_1$3T = factory$3T;
 
 	var asech = {
-		name: name$3H,
-		factory: factory_1$3U
+		name: name$3G,
+		factory: factory_1$3T
 	};
 
-	function factory$3V(type, config, load, typed) {
+	function factory$3U(type, config, load, typed) {
 	  /**
 	   * Calculate the inverse sine of a value.
 	   *
@@ -57098,15 +56881,15 @@ var CPM = (function (exports) {
 	  return asin;
 	}
 
-	var name$3I = 'asin';
-	var factory_1$3V = factory$3V;
+	var name$3H = 'asin';
+	var factory_1$3U = factory$3U;
 
 	var asin$1 = {
-		name: name$3I,
-		factory: factory_1$3V
+		name: name$3H,
+		factory: factory_1$3U
 	};
 
-	function factory$3W(type, config, load, typed) {
+	function factory$3V(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic arcsine of a value,
 	   * defined as `asinh(x) = ln(x + sqrt(x^2 + 1))`.
@@ -57149,15 +56932,15 @@ var CPM = (function (exports) {
 	  return asinh;
 	}
 
-	var name$3J = 'asinh';
-	var factory_1$3W = factory$3W;
+	var name$3I = 'asinh';
+	var factory_1$3V = factory$3V;
 
 	var asinh$1 = {
-		name: name$3J,
-		factory: factory_1$3W
+		name: name$3I,
+		factory: factory_1$3V
 	};
 
-	function factory$3X(type, config, load, typed) {
+	function factory$3W(type, config, load, typed) {
 	  /**
 	   * Calculate the inverse tangent of a value.
 	   *
@@ -57202,15 +56985,15 @@ var CPM = (function (exports) {
 	  return atan;
 	}
 
-	var name$3K = 'atan';
-	var factory_1$3X = factory$3X;
+	var name$3J = 'atan';
+	var factory_1$3W = factory$3W;
 
 	var atan$1 = {
-		name: name$3K,
-		factory: factory_1$3X
+		name: name$3J,
+		factory: factory_1$3W
 	};
 
-	function factory$3Y(type, config, load, typed) {
+	function factory$3X(type, config, load, typed) {
 	  var matrix$1 = load(matrix);
 	  var algorithm02$1 = load(algorithm02);
 	  var algorithm03$1 = load(algorithm03);
@@ -57306,15 +57089,15 @@ var CPM = (function (exports) {
 	  return atan2;
 	}
 
-	var name$3L = 'atan2';
-	var factory_1$3Y = factory$3Y;
+	var name$3K = 'atan2';
+	var factory_1$3X = factory$3X;
 
 	var atan2$1 = {
-		name: name$3L,
-		factory: factory_1$3Y
+		name: name$3K,
+		factory: factory_1$3X
 	};
 
-	function factory$3Z(type, config, load, typed) {
+	function factory$3Y(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic arctangent of a value,
 	   * defined as `atanh(x) = ln((1 + x)/(1 - x)) / 2`.
@@ -57372,15 +57155,15 @@ var CPM = (function (exports) {
 	  return Math.log((1 + x) / (1 - x)) / 2;
 	};
 
-	var name$3M = 'atanh';
-	var factory_1$3Z = factory$3Z;
+	var name$3L = 'atanh';
+	var factory_1$3Y = factory$3Y;
 
 	var atanh$1 = {
-		name: name$3M,
-		factory: factory_1$3Z
+		name: name$3L,
+		factory: factory_1$3Y
 	};
 
-	function factory$3_(type, config, load, typed) {
+	function factory$3Z(type, config, load, typed) {
 	  /**
 	   * Calculate the cosine of a value.
 	   *
@@ -57432,15 +57215,15 @@ var CPM = (function (exports) {
 	  return cos;
 	}
 
-	var name$3N = 'cos';
-	var factory_1$3_ = factory$3_;
+	var name$3M = 'cos';
+	var factory_1$3Z = factory$3Z;
 
 	var cos$1 = {
-		name: name$3N,
-		factory: factory_1$3_
+		name: name$3M,
+		factory: factory_1$3Z
 	};
 
-	function factory$3$(type, config, load, typed) {
+	function factory$3_(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic cosine of a value,
 	   * defined as `cosh(x) = 1/2 * (exp(x) + exp(-x))`.
@@ -57498,15 +57281,15 @@ var CPM = (function (exports) {
 	  return (Math.exp(x) + Math.exp(-x)) / 2;
 	};
 
-	var name$3O = 'cosh';
-	var factory_1$3$ = factory$3$;
+	var name$3N = 'cosh';
+	var factory_1$3_ = factory$3_;
 
 	var cosh$1 = {
-		name: name$3O,
-		factory: factory_1$3$
+		name: name$3N,
+		factory: factory_1$3_
 	};
 
-	function factory$40(type, config, load, typed) {
+	function factory$3$(type, config, load, typed) {
 	  /**
 	   * Calculate the cotangent of a value. Defined as `cot(x) = 1 / tan(x)`.
 	   *
@@ -57555,15 +57338,15 @@ var CPM = (function (exports) {
 	  return cot;
 	}
 
-	var name$3P = 'cot';
-	var factory_1$40 = factory$40;
+	var name$3O = 'cot';
+	var factory_1$3$ = factory$3$;
 
 	var cot = {
-		name: name$3P,
-		factory: factory_1$40
+		name: name$3O,
+		factory: factory_1$3$
 	};
 
-	function factory$41(type, config, load, typed) {
+	function factory$40(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic cotangent of a value,
 	   * defined as `coth(x) = 1 / tanh(x)`.
@@ -57624,15 +57407,15 @@ var CPM = (function (exports) {
 	  return (e + 1) / (e - 1);
 	}
 
-	var name$3Q = 'coth';
-	var factory_1$41 = factory$41;
+	var name$3P = 'coth';
+	var factory_1$40 = factory$40;
 
 	var coth = {
-		name: name$3Q,
-		factory: factory_1$41
+		name: name$3P,
+		factory: factory_1$40
 	};
 
-	function factory$42(type, config, load, typed) {
+	function factory$41(type, config, load, typed) {
 	  /**
 	   * Calculate the cosecant of a value, defined as `csc(x) = 1/sin(x)`.
 	   *
@@ -57681,17 +57464,17 @@ var CPM = (function (exports) {
 	  return csc;
 	}
 
-	var name$3R = 'csc';
-	var factory_1$42 = factory$42;
+	var name$3Q = 'csc';
+	var factory_1$41 = factory$41;
 
 	var csc = {
-		name: name$3R,
-		factory: factory_1$42
+		name: name$3Q,
+		factory: factory_1$41
 	};
 
 	var sign$3 = number.sign;
 
-	function factory$43(type, config, load, typed) {
+	function factory$42(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic cosecant of a value,
 	   * defined as `csch(x) = 1 / sinh(x)`.
@@ -57756,15 +57539,15 @@ var CPM = (function (exports) {
 	  }
 	}
 
-	var name$3S = 'csch';
-	var factory_1$43 = factory$43;
+	var name$3R = 'csch';
+	var factory_1$42 = factory$42;
 
 	var csch = {
-		name: name$3S,
-		factory: factory_1$43
+		name: name$3R,
+		factory: factory_1$42
 	};
 
-	function factory$44(type, config, load, typed) {
+	function factory$43(type, config, load, typed) {
 	  /**
 	   * Calculate the secant of a value, defined as `sec(x) = 1/cos(x)`.
 	   *
@@ -57813,15 +57596,15 @@ var CPM = (function (exports) {
 	  return sec;
 	}
 
-	var name$3T = 'sec';
-	var factory_1$44 = factory$44;
+	var name$3S = 'sec';
+	var factory_1$43 = factory$43;
 
 	var sec = {
-		name: name$3T,
-		factory: factory_1$44
+		name: name$3S,
+		factory: factory_1$43
 	};
 
-	function factory$45(type, config, load, typed) {
+	function factory$44(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic secant of a value,
 	   * defined as `sech(x) = 1 / cosh(x)`.
@@ -57881,15 +57664,15 @@ var CPM = (function (exports) {
 	  return 2 / (Math.exp(x) + Math.exp(-x));
 	}
 
-	var name$3U = 'sech';
-	var factory_1$45 = factory$45;
+	var name$3T = 'sech';
+	var factory_1$44 = factory$44;
 
 	var sech = {
-		name: name$3U,
-		factory: factory_1$45
+		name: name$3T,
+		factory: factory_1$44
 	};
 
-	function factory$46(type, config, load, typed) {
+	function factory$45(type, config, load, typed) {
 	  /**
 	   * Calculate the sine of a value.
 	   *
@@ -57942,15 +57725,15 @@ var CPM = (function (exports) {
 	  return sin;
 	}
 
-	var name$3V = 'sin';
-	var factory_1$46 = factory$46;
+	var name$3U = 'sin';
+	var factory_1$45 = factory$45;
 
 	var sin$1 = {
-		name: name$3V,
-		factory: factory_1$46
+		name: name$3U,
+		factory: factory_1$45
 	};
 
-	function factory$47(type, config, load, typed) {
+	function factory$46(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic sine of a value,
 	   * defined as `sinh(x) = 1/2 * (exp(x) - exp(-x))`.
@@ -58009,15 +57792,15 @@ var CPM = (function (exports) {
 	  return (Math.exp(x) - Math.exp(-x)) / 2;
 	};
 
-	var name$3W = 'sinh';
-	var factory_1$47 = factory$47;
+	var name$3V = 'sinh';
+	var factory_1$46 = factory$46;
 
 	var sinh$1 = {
-		name: name$3W,
-		factory: factory_1$47
+		name: name$3V,
+		factory: factory_1$46
 	};
 
-	function factory$48(type, config, load, typed) {
+	function factory$47(type, config, load, typed) {
 	  /**
 	   * Calculate the tangent of a value. `tan(x)` is equal to `sin(x) / cos(x)`.
 	   *
@@ -58067,15 +57850,15 @@ var CPM = (function (exports) {
 	  return tan;
 	}
 
-	var name$3X = 'tan';
-	var factory_1$48 = factory$48;
+	var name$3W = 'tan';
+	var factory_1$47 = factory$47;
 
 	var tan$1 = {
-		name: name$3X,
-		factory: factory_1$48
+		name: name$3W,
+		factory: factory_1$47
 	};
 
-	function factory$49(type, config, load, typed) {
+	function factory$48(type, config, load, typed) {
 	  /**
 	   * Calculate the hyperbolic tangent of a value,
 	   * defined as `tanh(x) = (exp(2 * x) - 1) / (exp(2 * x) + 1)`.
@@ -58138,17 +57921,17 @@ var CPM = (function (exports) {
 	  return (e - 1) / (e + 1);
 	};
 
-	var name$3Y = 'tanh';
-	var factory_1$49 = factory$49;
+	var name$3X = 'tanh';
+	var factory_1$48 = factory$48;
 
 	var tanh$1 = {
-		name: name$3Y,
-		factory: factory_1$49
+		name: name$3X,
+		factory: factory_1$48
 	};
 
 	var trigonometry = [acos$1, acosh$1, acot, acoth, acsc, acsch, asec, asech, asin$1, asinh$1, atan$1, atan2$1, atanh$1, cos$1, cosh$1, cot, coth, csc, csch, sec, sech, sin$1, sinh$1, tan$1, tanh$1];
 
-	function factory$4a(type, config, load, typed) {
+	function factory$49(type, config, load, typed) {
 	  var latex$1 = latex;
 
 	  var matrix$1 = load(matrix);
@@ -58222,17 +58005,17 @@ var CPM = (function (exports) {
 	  return to;
 	}
 
-	var name$3Z = 'to';
-	var factory_1$4a = factory$4a;
+	var name$3Y = 'to';
+	var factory_1$49 = factory$49;
 
 	var to = {
-		name: name$3Z,
-		factory: factory_1$4a
+		name: name$3Y,
+		factory: factory_1$49
 	};
 
 	var unit$2 = [to];
 
-	function factory$4b(type, config, load, typed) {
+	function factory$4a(type, config, load, typed) {
 	  /**
 	   * Clone an object.
 	   *
@@ -58259,15 +58042,15 @@ var CPM = (function (exports) {
 	  return clone;
 	}
 
-	var name$3_ = 'clone';
-	var factory_1$4b = factory$4b;
+	var name$3Z = 'clone';
+	var factory_1$4a = factory$4a;
 
 	var clone$a = {
-		name: name$3_,
-		factory: factory_1$4b
+		name: name$3Z,
+		factory: factory_1$4a
 	};
 
-	function factory$4c(type, config, load, typed) {
+	function factory$4b(type, config, load, typed) {
 	  var isNumeric$1 = load(isNumeric);
 	  /**
 	   * Test whether a value is an numeric value.
@@ -58310,15 +58093,15 @@ var CPM = (function (exports) {
 	  return hasNumericValue;
 	}
 
-	var name$3$ = 'hasNumericValue';
-	var factory_1$4c = factory$4c;
+	var name$3_ = 'hasNumericValue';
+	var factory_1$4b = factory$4b;
 
 	var hasNumericValue = {
-		name: name$3$,
-		factory: factory_1$4c
+		name: name$3_,
+		factory: factory_1$4b
 	};
 
-	function factory$4d(type, config, load, typed) {
+	function factory$4c(type, config, load, typed) {
 	  /**
 	   * Test whether a value is prime: has no divisors other than itself and one.
 	   * The function supports type `number`, `bignumber`.
@@ -58397,12 +58180,12 @@ var CPM = (function (exports) {
 	  return isPrime;
 	}
 
-	var name$40 = 'isPrime';
-	var factory_1$4d = factory$4d;
+	var name$3$ = 'isPrime';
+	var factory_1$4c = factory$4c;
 
 	var isPrime = {
-		name: name$40,
-		factory: factory_1$4d
+		name: name$3$,
+		factory: factory_1$4c
 	};
 
 	var utils$1 = [clone$a, isInteger$k, isNegative, isNumeric, hasNumericValue, isPositive, isPrime, isZero, _isNaN, _typeof$4];
@@ -60253,7 +60036,7 @@ var CPM = (function (exports) {
 	  'seealso': ['getMatrixDataType']
 	};
 
-	function factory$4e(construction$1, config, load, typed) {
+	function factory$4d(construction$1, config, load, typed) {
 	  var docs = {}; // construction functions
 
 	  docs.bignumber = bignumber$2;
@@ -60691,17 +60474,17 @@ var CPM = (function (exports) {
 	  return docs;
 	}
 
-	var name$41 = 'docs';
+	var name$40 = 'docs';
 	var path$Q = 'expression';
-	var factory_1$4e = factory$4e;
+	var factory_1$4d = factory$4d;
 
 	var embeddedDocs = {
-		name: name$41,
+		name: name$40,
 		path: path$Q,
-		factory: factory_1$4e
+		factory: factory_1$4d
 	};
 
-	function factory$4f(type, config, load, typed) {
+	function factory$4e(type, config, load, typed) {
 	  var parse$1 = load(parse);
 	  /**
 	   * Parse and compile an expression.
@@ -60750,15 +60533,15 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$42 = 'compile';
-	var factory_1$4f = factory$4f;
+	var name$41 = 'compile';
+	var factory_1$4e = factory$4e;
 
 	var compile = {
-		name: name$42,
-		factory: factory_1$4f
+		name: name$41,
+		factory: factory_1$4e
 	};
 
-	function factory$4g(type, config, load, typed) {
+	function factory$4f(type, config, load, typed) {
 	  var parse$1 = load(parse);
 	  /**
 	   * Evaluate an expression.
@@ -60815,17 +60598,17 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$43 = 'eval';
-	var factory_1$4g = factory$4g;
+	var name$42 = 'eval';
+	var factory_1$4f = factory$4f;
 
 	var _eval$1 = {
-		name: name$43,
-		factory: factory_1$4g
+		name: name$42,
+		factory: factory_1$4f
 	};
 
 	var getSafeProperty$8 = customs.getSafeProperty;
 
-	function factory$4h(type, config, load, typed, math) {
+	function factory$4g(type, config, load, typed, math) {
 	  var docs = load(embeddedDocs);
 	  /**
 	   * Retrieve help on a function or data type.
@@ -60888,20 +60671,20 @@ var CPM = (function (exports) {
 
 	var math$g = true; // request access to the math namespace as 5th argument of the factory function
 
-	var name$44 = 'help';
-	var factory_1$4h = factory$4h;
+	var name$43 = 'help';
+	var factory_1$4g = factory$4g;
 
 	var help$1 = {
 		math: math$g,
-		name: name$44,
-		factory: factory_1$4h
+		name: name$43,
+		factory: factory_1$4g
 	};
 
 	var extend$3 = object.extend;
 
 
 
-	function factory$4i(type, config, load, typed, math) {
+	function factory$4h(type, config, load, typed, math) {
 	  var _parse = load(parse);
 	  /**
 	   * @constructor Parser
@@ -61061,19 +60844,19 @@ var CPM = (function (exports) {
 	  return Parser;
 	}
 
-	var name$45 = 'Parser';
+	var name$44 = 'Parser';
 	var path$R = 'expression';
-	var factory_1$4i = factory$4i;
+	var factory_1$4h = factory$4h;
 	var math$h = true; // requires the math namespace as 5th argument
 
 	var Parser = {
-		name: name$45,
+		name: name$44,
 		path: path$R,
-		factory: factory_1$4i,
+		factory: factory_1$4h,
 		math: math$h
 	};
 
-	function factory$4j(type, config, load, typed, math) {
+	function factory$4i(type, config, load, typed, math) {
 	  var Parser$1 = load(Parser);
 	  /**
 	   * Create a parser. The function creates a new `math.expression.Parser` object.
@@ -61126,19 +60909,19 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$46 = 'parser';
-	var factory_1$4j = factory$4j;
+	var name$45 = 'parser';
+	var factory_1$4i = factory$4i;
 	var math$i = true; // requires the math namespace as 5th argument
 
 	var parser = {
-		name: name$46,
-		factory: factory_1$4j,
+		name: name$45,
+		factory: factory_1$4i,
 		math: math$i
 	};
 
 	var _function$3 = [compile, _eval$1, help$1, parse$1, parser];
 
-	function factory$4k(type, config, load, typed) {
+	function factory$4j(type, config, load, typed) {
 	  /**
 	   * @constructor UpdateNode
 	   */
@@ -61150,62 +60933,19 @@ var CPM = (function (exports) {
 	  return UpdateNode;
 	}
 
-	var name$47 = 'UpdateNode';
+	var name$46 = 'UpdateNode';
 	var path$S = 'expression.node';
-	var factory_1$4k = factory$4k;
+	var factory_1$4j = factory$4j;
 
 	var UpdateNode = {
-		name: name$47,
+		name: name$46,
 		path: path$S,
-		factory: factory_1$4k
+		factory: factory_1$4j
 	};
 
 	var node = [AccessorNode, ArrayNode, AssignmentNode, BlockNode, ConditionalNode, ConstantNode, IndexNode, FunctionAssignmentNode, FunctionNode, Node, ObjectNode, OperatorNode, ParenthesisNode, RangeNode, RelationalNode, SymbolNode, UpdateNode];
 
 	var errorTransform$2 = error_transform.transform;
-	/**
-	 * Attach a transform function to math.apply
-	 * Adds a property transform containing the transform function.
-	 *
-	 * This transform changed the last `dim` parameter of function apply
-	 * from one-based to zero based
-	 */
-
-
-	function factory$4l(type, config, load, typed) {
-	  var apply$1 = load(apply); // @see: comment of concat itself
-
-	  return typed('apply', {
-	    '...any': function any(args) {
-	      // change dim from one-based to zero-based
-	      var dim = args[1];
-
-	      if (type.isNumber(dim)) {
-	        args[1] = dim - 1;
-	      } else if (type.isBigNumber(dim)) {
-	        args[1] = dim.minus(1);
-	      }
-
-	      try {
-	        return apply$1.apply(null, args);
-	      } catch (err) {
-	        throw errorTransform$2(err);
-	      }
-	    }
-	  });
-	}
-
-	var name$48 = 'apply';
-	var path$T = 'expression.transform';
-	var factory_1$4l = factory$4l;
-
-	var apply_transform = {
-		name: name$48,
-		path: path$T,
-		factory: factory_1$4l
-	};
-
-	var errorTransform$3 = error_transform.transform;
 	/**
 	 * Attach a transform function to math.range
 	 * Adds a property transform containing the transform function.
@@ -61215,7 +60955,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4m(type, config, load, typed) {
+	function factory$4k(type, config, load, typed) {
 	  var concat$1 = load(concat); // @see: comment of concat itself
 
 	  return typed('concat', {
@@ -61233,23 +60973,23 @@ var CPM = (function (exports) {
 	      try {
 	        return concat$1.apply(null, args);
 	      } catch (err) {
-	        throw errorTransform$3(err);
+	        throw errorTransform$2(err);
 	      }
 	    }
 	  });
 	}
 
-	var name$49 = 'concat';
-	var path$U = 'expression.transform';
-	var factory_1$4m = factory$4m;
+	var name$47 = 'concat';
+	var path$T = 'expression.transform';
+	var factory_1$4k = factory$4k;
 
 	var concat_transform = {
-		name: name$49,
-		path: path$U,
-		factory: factory_1$4m
+		name: name$47,
+		path: path$T,
+		factory: factory_1$4k
 	};
 
-	function factory$4n(type, config, load, typed) {
+	function factory$4l(type, config, load, typed) {
 	  /**
 	   * Compile an inline expression like "x > 0"
 	   * @param {Node} expression
@@ -61280,10 +61020,10 @@ var CPM = (function (exports) {
 	  };
 	}
 
-	var factory_1$4n = factory$4n;
+	var factory_1$4l = factory$4l;
 
 	var compileInlineExpression = {
-		factory: factory_1$4n
+		factory: factory_1$4l
 	};
 
 	var filter$2 = array.filter;
@@ -61300,7 +61040,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4o(type, config, load, typed) {
+	function factory$4m(type, config, load, typed) {
 	  var compileInlineExpression$1 = load(compileInlineExpression);
 	  var matrix$1 = load(matrix);
 
@@ -61368,14 +61108,14 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$4a = 'filter';
-	var path$V = 'expression.transform';
-	var factory_1$4o = factory$4o;
+	var name$48 = 'filter';
+	var path$U = 'expression.transform';
+	var factory_1$4m = factory$4m;
 
 	var filter_transform = {
-		name: name$4a,
-		path: path$V,
-		factory: factory_1$4o
+		name: name$48,
+		path: path$U,
+		factory: factory_1$4m
 	};
 
 	var maxArgumentCount$5 = _function.maxArgumentCount;
@@ -61389,7 +61129,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4p(type, config, load, typed) {
+	function factory$4n(type, config, load, typed) {
 	  var compileInlineExpression$1 = load(compileInlineExpression);
 
 	  function forEachTransform(args, math, scope) {
@@ -61445,14 +61185,14 @@ var CPM = (function (exports) {
 	  return forEachTransform;
 	}
 
-	var name$4b = 'forEach';
-	var path$W = 'expression.transform';
-	var factory_1$4p = factory$4p;
+	var name$49 = 'forEach';
+	var path$V = 'expression.transform';
+	var factory_1$4n = factory$4n;
 
 	var forEach_transform = {
-		name: name$4b,
-		path: path$W,
-		factory: factory_1$4p
+		name: name$49,
+		path: path$V,
+		factory: factory_1$4n
 	};
 
 	/**
@@ -61462,7 +61202,7 @@ var CPM = (function (exports) {
 	 * This transform creates a one-based index instead of a zero-based index
 	 */
 
-	function factory$4q(type, config, load) {
+	function factory$4o(type, config, load) {
 	  return function indexTransform() {
 	    var args = [];
 
@@ -61497,14 +61237,14 @@ var CPM = (function (exports) {
 	  };
 	}
 
-	var name$4c = 'index';
-	var path$X = 'expression.transform';
-	var factory_1$4q = factory$4q;
+	var name$4a = 'index';
+	var path$W = 'expression.transform';
+	var factory_1$4o = factory$4o;
 
 	var index_transform = {
-		name: name$4c,
-		path: path$X,
-		factory: factory_1$4q
+		name: name$4a,
+		path: path$W,
+		factory: factory_1$4o
 	};
 
 	var maxArgumentCount$6 = _function.maxArgumentCount;
@@ -61518,7 +61258,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4r(type, config, load, typed) {
+	function factory$4p(type, config, load, typed) {
 	  var compileInlineExpression$1 = load(compileInlineExpression);
 	  var matrix$1 = load(matrix);
 
@@ -61590,17 +61330,17 @@ var CPM = (function (exports) {
 	  return recurse(array, []);
 	}
 
-	var name$4d = 'map';
-	var path$Y = 'expression.transform';
-	var factory_1$4r = factory$4r;
+	var name$4b = 'map';
+	var path$X = 'expression.transform';
+	var factory_1$4p = factory$4p;
 
 	var map_transform = {
-		name: name$4d,
-		path: path$Y,
-		factory: factory_1$4r
+		name: name$4b,
+		path: path$X,
+		factory: factory_1$4p
 	};
 
-	var errorTransform$4 = error_transform.transform;
+	var errorTransform$3 = error_transform.transform;
 
 
 	/**
@@ -61612,7 +61352,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4s(type, config, load, typed) {
+	function factory$4q(type, config, load, typed) {
 	  var max = load(max$1);
 	  return typed('max', {
 	    '...any': function any(args) {
@@ -61630,23 +61370,23 @@ var CPM = (function (exports) {
 	      try {
 	        return max.apply(null, args);
 	      } catch (err) {
-	        throw errorTransform$4(err);
+	        throw errorTransform$3(err);
 	      }
 	    }
 	  });
 	}
 
-	var name$4e = 'max';
-	var path$Z = 'expression.transform';
-	var factory_1$4s = factory$4s;
+	var name$4c = 'max';
+	var path$Y = 'expression.transform';
+	var factory_1$4q = factory$4q;
 
 	var max_transform = {
-		name: name$4e,
-		path: path$Z,
-		factory: factory_1$4s
+		name: name$4c,
+		path: path$Y,
+		factory: factory_1$4q
 	};
 
-	var errorTransform$5 = error_transform.transform;
+	var errorTransform$4 = error_transform.transform;
 
 
 	/**
@@ -61658,7 +61398,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4t(type, config, load, typed) {
+	function factory$4r(type, config, load, typed) {
 	  var mean$1 = load(mean);
 	  return typed('mean', {
 	    '...any': function any(args) {
@@ -61676,23 +61416,23 @@ var CPM = (function (exports) {
 	      try {
 	        return mean$1.apply(null, args);
 	      } catch (err) {
-	        throw errorTransform$5(err);
+	        throw errorTransform$4(err);
 	      }
 	    }
 	  });
 	}
 
-	var name$4f = 'mean';
-	var path$_ = 'expression.transform';
-	var factory_1$4t = factory$4t;
+	var name$4d = 'mean';
+	var path$Z = 'expression.transform';
+	var factory_1$4r = factory$4r;
 
 	var mean_transform = {
-		name: name$4f,
-		path: path$_,
-		factory: factory_1$4t
+		name: name$4d,
+		path: path$Z,
+		factory: factory_1$4r
 	};
 
-	var errorTransform$6 = error_transform.transform;
+	var errorTransform$5 = error_transform.transform;
 
 
 	/**
@@ -61704,7 +61444,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4u(type, config, load, typed) {
+	function factory$4s(type, config, load, typed) {
 	  var min = load(min$1);
 	  return typed('min', {
 	    '...any': function any(args) {
@@ -61722,20 +61462,20 @@ var CPM = (function (exports) {
 	      try {
 	        return min.apply(null, args);
 	      } catch (err) {
-	        throw errorTransform$6(err);
+	        throw errorTransform$5(err);
 	      }
 	    }
 	  });
 	}
 
-	var name$4g = 'min';
-	var path$$ = 'expression.transform';
-	var factory_1$4u = factory$4u;
+	var name$4e = 'min';
+	var path$_ = 'expression.transform';
+	var factory_1$4s = factory$4s;
 
 	var min_transform = {
-		name: name$4g,
-		path: path$$,
-		factory: factory_1$4u
+		name: name$4e,
+		path: path$_,
+		factory: factory_1$4s
 	};
 
 	/**
@@ -61745,7 +61485,7 @@ var CPM = (function (exports) {
 	 * This transform creates a range which includes the end value
 	 */
 
-	function factory$4v(type, config, load, typed) {
+	function factory$4t(type, config, load, typed) {
 	  var range$1 = load(range);
 	  return typed('range', {
 	    '...any': function any(args) {
@@ -61762,63 +61502,17 @@ var CPM = (function (exports) {
 	  });
 	}
 
-	var name$4h = 'range';
-	var path$10 = 'expression.transform';
-	var factory_1$4v = factory$4v;
+	var name$4f = 'range';
+	var path$$ = 'expression.transform';
+	var factory_1$4t = factory$4t;
 
 	var range_transform = {
-		name: name$4h,
-		path: path$10,
-		factory: factory_1$4v
+		name: name$4f,
+		path: path$$,
+		factory: factory_1$4t
 	};
 
-	var errorTransform$7 = error_transform.transform;
-
-
-	/**
-	 * Attach a transform function to math.std
-	 * Adds a property transform containing the transform function.
-	 *
-	 * This transform changed the `dim` parameter of function std
-	 * from one-based to zero based
-	 */
-
-
-	function factory$4w(type, config, load, typed) {
-	  var std$1 = load(std);
-	  return typed('std', {
-	    '...any': function any(args) {
-	      // change last argument dim from one-based to zero-based
-	      if (args.length >= 2 && isCollection(args[0])) {
-	        var dim = args[1];
-
-	        if (type.isNumber(dim)) {
-	          args[1] = dim - 1;
-	        } else if (type.isBigNumber(dim)) {
-	          args[1] = dim.minus(1);
-	        }
-	      }
-
-	      try {
-	        return std$1.apply(null, args);
-	      } catch (err) {
-	        throw errorTransform$7(err);
-	      }
-	    }
-	  });
-	}
-
-	var name$4i = 'std';
-	var path$11 = 'expression.transform';
-	var factory_1$4w = factory$4w;
-
-	var std_transform = {
-		name: name$4i,
-		path: path$11,
-		factory: factory_1$4w
-	};
-
-	var errorTransform$8 = error_transform.transform;
+	var errorTransform$6 = error_transform.transform;
 	/**
 	 * Attach a transform function to math.subset
 	 * Adds a property transform containing the transform function.
@@ -61827,30 +61521,30 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4x(type, config, load, typed) {
+	function factory$4u(type, config, load, typed) {
 	  var subset$1 = load(subset);
 	  return typed('subset', {
 	    '...any': function any(args) {
 	      try {
 	        return subset$1.apply(null, args);
 	      } catch (err) {
-	        throw errorTransform$8(err);
+	        throw errorTransform$6(err);
 	      }
 	    }
 	  });
 	}
 
-	var name$4j = 'subset';
-	var path$12 = 'expression.transform';
-	var factory_1$4x = factory$4x;
+	var name$4g = 'subset';
+	var path$10 = 'expression.transform';
+	var factory_1$4u = factory$4u;
 
 	var subset_transform = {
-		name: name$4j,
-		path: path$12,
-		factory: factory_1$4x
+		name: name$4g,
+		path: path$10,
+		factory: factory_1$4u
 	};
 
-	var errorTransform$9 = error_transform.transform;
+	var errorTransform$7 = error_transform.transform;
 
 
 	/**
@@ -61862,7 +61556,7 @@ var CPM = (function (exports) {
 	 */
 
 
-	function factory$4y(type, config, load, typed) {
+	function factory$4v(type, config, load, typed) {
 	  var sum$1 = load(sum);
 	  return typed('sum', {
 	    '...any': function any(args) {
@@ -61880,71 +61574,25 @@ var CPM = (function (exports) {
 	      try {
 	        return sum$1.apply(null, args);
 	      } catch (err) {
-	        throw errorTransform$9(err);
+	        throw errorTransform$7(err);
 	      }
 	    }
 	  });
 	}
 
-	var name$4k = 'sum';
-	var path$13 = 'expression.transform';
-	var factory_1$4y = factory$4y;
+	var name$4h = 'sum';
+	var path$11 = 'expression.transform';
+	var factory_1$4v = factory$4v;
 
 	var sum_transform = {
-		name: name$4k,
-		path: path$13,
-		factory: factory_1$4y
+		name: name$4h,
+		path: path$11,
+		factory: factory_1$4v
 	};
 
-	var errorTransform$a = error_transform.transform;
+	var transform$1 = [concat_transform, filter_transform, forEach_transform, index_transform, map_transform, max_transform, mean_transform, min_transform, range_transform, subset_transform, sum_transform];
 
-
-	/**
-	 * Attach a transform function to math.var
-	 * Adds a property transform containing the transform function.
-	 *
-	 * This transform changed the `dim` parameter of function var
-	 * from one-based to zero based
-	 */
-
-
-	function factory$4z(type, config, load, typed) {
-	  var variance = load(_var);
-	  return typed('var', {
-	    '...any': function any(args) {
-	      // change last argument dim from one-based to zero-based
-	      if (args.length >= 2 && isCollection(args[0])) {
-	        var dim = args[1];
-
-	        if (type.isNumber(dim)) {
-	          args[1] = dim - 1;
-	        } else if (type.isBigNumber(dim)) {
-	          args[1] = dim.minus(1);
-	        }
-	      }
-
-	      try {
-	        return variance.apply(null, args);
-	      } catch (err) {
-	        throw errorTransform$a(err);
-	      }
-	    }
-	  });
-	}
-
-	var name$4l = 'var';
-	var path$14 = 'expression.transform';
-	var factory_1$4z = factory$4z;
-
-	var var_transform = {
-		name: name$4l,
-		path: path$14,
-		factory: factory_1$4z
-	};
-
-	var transform$1 = [apply_transform, concat_transform, filter_transform, forEach_transform, index_transform, map_transform, max_transform, mean_transform, min_transform, range_transform, std_transform, subset_transform, sum_transform, var_transform];
-
-	function factory$4A(type, config, load, typed) {
+	function factory$4w(type, config, load, typed) {
 	  var parser$1 = load(parser)();
 	  /**
 	   * Documentation object
@@ -62068,21 +61716,21 @@ var CPM = (function (exports) {
 	  return Help;
 	}
 
-	var name$4m = 'Help';
-	var path$15 = 'type';
-	var factory_1$4A = factory$4A;
+	var name$4i = 'Help';
+	var path$12 = 'type';
+	var factory_1$4w = factory$4w;
 
 	var Help = {
-		name: name$4m,
-		path: path$15,
-		factory: factory_1$4A
+		name: name$4i,
+		path: path$12,
+		factory: factory_1$4w
 	};
 
 	var expression = [// Note that the docs folder is called "embeddedDocs" and not "docs" to prevent issues
 	// with yarn autoclean. See https://github.com/josdejong/mathjs/issues/969
 	embeddedDocs, _function$3, node, transform$1, Help, parse, Parser];
 
-	function factory$4B(type, config, load, typed, math) {
+	function factory$4x(type, config, load, typed, math) {
 	  /**
 	   * Instantiate mathjs data types from their JSON representation
 	   * @param {string} key
@@ -62100,15 +61748,15 @@ var CPM = (function (exports) {
 	  };
 	}
 
-	var name$4n = 'reviver';
-	var path$16 = 'json';
-	var factory_1$4B = factory$4B;
+	var name$4j = 'reviver';
+	var path$13 = 'json';
+	var factory_1$4x = factory$4x;
 	var math$j = true; // request the math namespace as fifth argument
 
 	var reviver = {
-		name: name$4n,
-		path: path$16,
-		factory: factory_1$4B,
+		name: name$4j,
+		path: path$13,
+		factory: factory_1$4x,
 		math: math$j
 	};
 
@@ -62193,10 +61841,10 @@ var CPM = (function (exports) {
 
 		set CPM(C){
 			this.C = C;
-			if( C.ndim > 2 ){ 
+			if( C.ndim > 2 ){
 				throw("only works for 2-dimensional CPMs!")
 			}
-			if( C.field_size.x != C.field_size.y ){ 
+			if( C.field_size.x != C.field_size.y ){
 				throw("only works for square CPMs!")
 			}
 			this.size = C.field_size.x;
@@ -62318,24 +61966,20 @@ var CPM = (function (exports) {
 			this.chemokinelevel = mathjs.multiply(this.chemokinelevel, 1 - this.decay * this.dt);
 		}
 
-	  postMCSListener(){
-	    // Chemokine is produced by all chemokine grid lattice sites
+	 	postMCSListener(){
+			// Chemokine is produced by all chemokine grid lattice sites
 			this.produceChemokine();
-			
 		  	// Every MCS, the chemokine diffuses 10 times
 			for(let i = 0; i < this.DPerMCS; i++) {
 				this.updateValues();
 			}
-		  	
 			// Updates the main grid with interpolated values of the chemokine grid
-			console.time("postmcs");
-		  	this.updateGrid();
-		 	console.timeEnd("postmcs");
+		  this.updateGrid();
 			// Chemokine decays
 			this.removeChemokine();
-	  }
+		}
 
-	  /* To bias a copy attempt p1 -> p2 in the direction of vector 'dir'.
+	  	/* To bias a copy attempt p1 -> p2 in the direction of vector 'dir'.
 		This implements a linear gradient rather than a radial one as with pointAttractor. */
 		linAttractor ( p1, p2, dir ){
 			let r = 0., norm1 = 0, norm2 = 0, d1 = 0., d2 = 0.;
@@ -62367,21 +62011,18 @@ var CPM = (function (exports) {
 		}
 
 		deltaH( sourcei, targeti, src_type, tgt_type ){
-			let sp = this.C.grid.i2p( sourcei ), tp = this.C.grid.i2p( targeti );
-			let chdiff = this.chemokinereal.get( tp ) - this.chemokinereal.get(sp);
-			return bias * chdiff
-			/*
-			let gradientvec2 = 
-				this.computeGradient( this.C.grid.i2p(sourcei), this.chemokinereal )
-			let bias = 
-				this.linAttractor( this.C.grid.i2p(sourcei), this.C.grid.i2p(targeti), gradientvec2 )
-	 		let lambdachem
+			//let sp = this.C.grid.i2p( sourcei ), tp = this.C.grid.i2p( targeti )
+			let gradientvec2 =
+				this.computeGradient( this.C.grid.i2p(sourcei), this.chemokinereal );
+			let bias =
+				this.linAttractor( this.C.grid.i2p(sourcei), this.C.grid.i2p(targeti), gradientvec2 );
+	 		let lambdachem;
 			if( src_type != 0 ){
-				lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[src_type]]
+				lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[src_type]];
 			} else {
-				lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[tgt_type]]
+				lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[tgt_type]];
 			}
-			return -bias*lambdachem*/
+			return -bias*lambdachem
 		}
 	}
 

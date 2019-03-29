@@ -172,9 +172,7 @@ class ChemotaxisConstraint extends SoftConstraint {
 			this.updateValues()
 		}
 		// Updates the main grid with interpolated values of the chemokine grid
-		console.time("postmcs")
-	  	this.updateGrid()
-	 	console.timeEnd("postmcs")
+	  this.updateGrid()
 		// Chemokine decays
 		this.removeChemokine()
 	}

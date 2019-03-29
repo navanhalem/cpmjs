@@ -169,8 +169,14 @@ class PostMCSStats {
 			}
 		}
 
-		return centroid		
+		return centroid
 	}
+
+	// counts cells of kind
+	countCells ( kind ){
+		return this.C.t2k.reduce( function(xa,x){ return (x==kind) + xa } )
+	}
+
 }
 
-export default  PostMCSStats 
+export default  PostMCSStats

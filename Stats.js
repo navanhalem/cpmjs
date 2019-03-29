@@ -329,6 +329,7 @@ class Stats {
 		} else {
 			cbpi = cbpi[cell]
 		}
+		let neigh_cell = []
 		let neigh_cell_amountborder = {}
 		//loop over border pixels of cell
 		for ( let cellpix = 0; cellpix < cbpi.length; cellpix++ ) {
@@ -340,20 +341,23 @@ class Stats {
 			for ( let neighborpix = 0; neighborpix < neighbours_of_borderpixel_cell.length;
 				neighborpix ++ ) {
 				let cell_id = this.C.pixti(neighbours_of_borderpixel_cell[neighborpix])
-				if (cell_id != cell) {
+				if (cell_id != cell && this.C.t2k[cell_id] != this.C.t2k[cell]) {
+					if (!neigh_cell.includes(cell_id)) {
+						neigh_cell.push(cell_id)
+					}
 					neigh_cell_amountborder[cell_id] = neigh_cell_amountborder[cell_id]+1 || 1
 				}
 			}
 		}
-		return neigh_cell_amountborder
+		return [neigh_cell, neigh_cell_amountborder]
 	}
 
 	// ------------ HELPER FUNCTIONS
-	
+
 	// TODO all helper functions have been removed from this class.
 	// We should only access cellpixels through the "official" interface
 	// in the CPM class.
-	
+
 }
 
 

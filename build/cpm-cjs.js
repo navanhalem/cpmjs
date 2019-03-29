@@ -1139,6 +1139,7 @@ class Stats {
 		} else {
 			cbpi = cbpi[cell];
 		}
+		let neigh_cell = [];
 		let neigh_cell_amountborder = {};
 		//loop over border pixels of cell
 		for ( let cellpix = 0; cellpix < cbpi.length; cellpix++ ) {
@@ -1150,20 +1151,23 @@ class Stats {
 			for ( let neighborpix = 0; neighborpix < neighbours_of_borderpixel_cell.length;
 				neighborpix ++ ) {
 				let cell_id = this.C.pixti(neighbours_of_borderpixel_cell[neighborpix]);
-				if (cell_id != cell) {
+				if (cell_id != cell && this.C.t2k[cell_id] != this.C.t2k[cell]) {
+					if (!neigh_cell.includes(cell_id)) {
+						neigh_cell.push(cell_id);
+					}
 					neigh_cell_amountborder[cell_id] = neigh_cell_amountborder[cell_id]+1 || 1;
 				}
 			}
 		}
-		return neigh_cell_amountborder
+		return [neigh_cell, neigh_cell_amountborder]
 	}
 
 	// ------------ HELPER FUNCTIONS
-	
+
 	// TODO all helper functions have been removed from this class.
 	// We should only access cellpixels through the "official" interface
 	// in the CPM class.
-	
+
 }
 
 class PostMCSStats {
@@ -1336,8 +1340,14 @@ class PostMCSStats {
 			}
 		}
 
-		return centroid		
+		return centroid
 	}
+
+	// counts cells of kind
+	countCells ( kind ){
+		return this.C.t2k.reduce( function(xa,x){ return (x==kind) + xa } )
+	}
+
 }
 
 /* This class contains methods that should be executed once per monte carlo step.
@@ -2095,10 +2105,10 @@ class ChemotaxisConstraint extends SoftConstraint {
 
 	set CPM(C){
 		this.C = C;
-		if( C.ndim > 2 ){ 
+		if( C.ndim > 2 ){
 			throw("only works for 2-dimensional CPMs!")
 		}
-		if( C.field_size.x != C.field_size.y ){ 
+		if( C.field_size.x != C.field_size.y ){
 			throw("only works for square CPMs!")
 		}
 		this.size = C.field_size.x;
@@ -2220,24 +2230,20 @@ class ChemotaxisConstraint extends SoftConstraint {
 		this.chemokinelevel = math.multiply(this.chemokinelevel, 1 - this.decay * this.dt);
 	}
 
-  postMCSListener(){
-    // Chemokine is produced by all chemokine grid lattice sites
+ 	postMCSListener(){
+		// Chemokine is produced by all chemokine grid lattice sites
 		this.produceChemokine();
-		
 	  	// Every MCS, the chemokine diffuses 10 times
 		for(let i = 0; i < this.DPerMCS; i++) {
 			this.updateValues();
 		}
-	  	
 		// Updates the main grid with interpolated values of the chemokine grid
-		console.time("postmcs");
-	  	this.updateGrid();
-	 	console.timeEnd("postmcs");
+	  this.updateGrid();
 		// Chemokine decays
 		this.removeChemokine();
-  }
+	}
 
-  /* To bias a copy attempt p1 -> p2 in the direction of vector 'dir'.
+  	/* To bias a copy attempt p1 -> p2 in the direction of vector 'dir'.
 	This implements a linear gradient rather than a radial one as with pointAttractor. */
 	linAttractor ( p1, p2, dir ){
 		let r = 0., norm1 = 0, norm2 = 0, d1 = 0., d2 = 0.;
@@ -2269,21 +2275,18 @@ class ChemotaxisConstraint extends SoftConstraint {
 	}
 
 	deltaH( sourcei, targeti, src_type, tgt_type ){
-		let sp = this.C.grid.i2p( sourcei ), tp = this.C.grid.i2p( targeti );
-		let chdiff = this.chemokinereal.get( tp ) - this.chemokinereal.get(sp);
-		return bias * chdiff
-		/*
-		let gradientvec2 = 
-			this.computeGradient( this.C.grid.i2p(sourcei), this.chemokinereal )
-		let bias = 
-			this.linAttractor( this.C.grid.i2p(sourcei), this.C.grid.i2p(targeti), gradientvec2 )
- 		let lambdachem
+		//let sp = this.C.grid.i2p( sourcei ), tp = this.C.grid.i2p( targeti )
+		let gradientvec2 =
+			this.computeGradient( this.C.grid.i2p(sourcei), this.chemokinereal );
+		let bias =
+			this.linAttractor( this.C.grid.i2p(sourcei), this.C.grid.i2p(targeti), gradientvec2 );
+ 		let lambdachem;
 		if( src_type != 0 ){
-			lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[src_type]]
+			lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[src_type]];
 		} else {
-			lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[tgt_type]]
+			lambdachem = this.conf["LAMBDA_CHEMOTAXIS"][this.C.t2k[tgt_type]];
 		}
-		return -bias*lambdachem*/
+		return -bias*lambdachem
 	}
 }
 
